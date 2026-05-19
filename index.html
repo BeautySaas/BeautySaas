@@ -491,32 +491,53 @@ let contasTab     = 'pagar';
 // ══════════════════════════════════════════
 // BOOT — verifica sessão existente
 // ══════════════════════════════════════════
+let _loggingIn = false; // evita reentrada simultânea
+
 async function boot() {
   const { data: { session } } = await sb.auth.getSession();
-  if (session) {
+  if (session?.user) {
     await afterLogin(session.user);
   }
-  // Escuta mudanças de sessão
-  sb.auth.onAuthStateChange(async (_event, session) => {
-    if (session) await afterLogin(session.user);
-    else showAuthScreen();
+
+  sb.auth.onAuthStateChange(async (event, session) => {
+    // Ignora eventos que não representam login efetivo
+    if (event === 'SIGNED_OUT') { showAuthScreen(); return; }
+    if (event === 'SIGNED_IN' && session?.user) {
+      await afterLogin(session.user);
+    }
   });
 }
 
 async function afterLogin(user) {
+  if (_loggingIn) return;   // evita dupla execução
+  _loggingIn = true;
+
   currentUser = user;
-  // Busca profile + tenant
-  const { data: profile } = await sb.from('profiles').select('*,tenants(*)').eq('id', user.id).single();
-  if (!profile) { toast('Perfil não encontrado. Contate o suporte.', 'error'); return; }
+
+  // O trigger do Supabase pode levar alguns ms para criar o profile.
+  // Tentamos até 5x com 600ms de intervalo antes de desistir.
+  let profile = null;
+  for (let i = 0; i < 5; i++) {
+    const { data } = await sb.from('profiles').select('*,tenants(*)').eq('id', user.id).single();
+    if (data) { profile = data; break; }
+    await new Promise(r => setTimeout(r, 600));
+  }
+
+  if (!profile) {
+    toast('Perfil não encontrado. Aguarde e tente novamente.', 'error');
+    _loggingIn = false;
+    return;
+  }
+
   currentProfile = profile;
   tenantId = profile.tenant_id;
 
-  // Atualiza UI
   const nomeNegocio = profile.tenants?.nome || 'Meu Negócio';
   document.getElementById('tenant-name').textContent = nomeNegocio;
   document.getElementById('tenant-role').textContent = profile.role || 'owner';
   document.getElementById('tenant-avatar').textContent = nomeNegocio.charAt(0).toUpperCase();
 
+  _loggingIn = false;
   showApp();
   loadDashboard();
 }
