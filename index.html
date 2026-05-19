@@ -471,8 +471,8 @@ textarea{resize:vertical;min-height:80px}
 // ══════════════════════════════════════════
 // CONFIG SUPABASE — edite aqui ou use .env
 // ══════════════════════════════════════════
-const SUPABASE_URL = localStorage.getItem('bs_url') || 'COLE_SUA_URL_AQUI';
-const SUPABASE_KEY = localStorage.getItem('bs_key') || 'COLE_SUA_ANON_KEY_AQUI';
+const SUPABASE_URL = 'https://lsedqqthrajwwgcgzukk.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxzZWRxcXRocmFqd3dnY2d6dWtrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxNTU0MjQsImV4cCI6MjA5NDczMTQyNH0.1AzUPgw3POWxCsE-fx7VOyXB4fZoMfrGHq3mVmmFAIs';
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ══════════════════════════════════════════
@@ -585,13 +585,40 @@ async function doRegister() {
   if (!nome || !email || !pass) { showErr(err, 'Preencha todos os campos'); return; }
   if (pass.length < 6) { showErr(err, 'A senha deve ter ao menos 6 caracteres'); return; }
   btn.textContent = 'Criando conta...'; btn.disabled = true;
-  const { error } = await sb.auth.signUp({
-    email, password: pass,
-    options: { data: { nome, negocio: negocio || nome + ' Cosméticos' } }
-  });
-  if (error) showErr(err, traduzirErro(error.message));
-  else { toast('Conta criada! Verifique seu email para confirmar.', 'success'); switchAuthTab('login'); }
+
+  let data, error;
+  try {
+    const res = await sb.auth.signUp({
+      email, password: pass,
+      options: { data: { nome, negocio: negocio || nome + ' Cosméticos' } }
+    });
+    data = res.data; error = res.error;
+  } catch(e) {
+    showErr(err, 'Erro inesperado: ' + e.message);
+    btn.textContent = 'Criar Minha Conta'; btn.disabled = false;
+    return;
+  }
+
+  if (error) {
+    showErr(err, traduzirErro(error.message));
+    btn.textContent = 'Criar Minha Conta'; btn.disabled = false;
+    return;
+  }
+
+  // Sem erro — verifica se sessao ja existe (confirm email OFF)
+  if (data && data.session) {
+    // onAuthStateChange vai disparar e fazer o login
+    btn.textContent = 'Entrando...';
+    return;
+  }
+
+  // Confirm email ainda ativo — avisa o usuario
   btn.textContent = 'Criar Minha Conta'; btn.disabled = false;
+  err.style.color = '#86efac';
+  err.style.background = 'rgba(134,239,172,.1)';
+  err.style.borderLeft = '3px solid #86efac';
+  err.style.display = 'block';
+  err.textContent = 'Conta criada! Verifique seu email (' + email + ') e clique no link para entrar.';
 }
 
 async function doResetPass() {
