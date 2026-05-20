@@ -332,7 +332,12 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:14px 0}
           <div class="tab" onclick="finTab('receber')">💰 A Receber</div>
           <div class="tab" onclick="finTab('todos')">📋 Todos</div>
         </div>
-        <div class="card"><div class="table-wrap"><table><thead><tr><th>Descrição</th><th>Categoria</th><th>Parcela</th><th>Vencimento</th><th>Valor</th><th>Status</th><th>Pago/Recebido em</th><th>Ações</th></tr></thead><tbody id="tb-fin"></tbody></table></div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:flex-end">
+          <div class="search-box" style="flex:1;max-width:240px"><span>🔍</span><input id="fin-busca" placeholder="Buscar descrição..." oninput="filtFin()"/></div>
+          <div class="form-group" style="margin:0"><label style="font-size:11px">Cliente / Fornecedor</label><select id="fin-pessoa" onchange="filtFin()" style="padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px"><option value="">Todos</option></select></div>
+          <div class="form-group" style="margin:0"><label style="font-size:11px">Status</label><select id="fin-status" onchange="filtFin()" style="padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px"><option value="">Todos</option><option value="pendente">Pendente</option><option value="pago">Pago</option></select></div>
+        </div>
+        <div class="card"><div class="table-wrap"><table><thead><tr><th>Descrição</th><th>Cliente / Fornecedor</th><th>Categoria</th><th>Parcela</th><th>Vencimento</th><th>Valor</th><th>Status</th><th>Pago/Recebido em</th><th>Ações</th></tr></thead><tbody id="tb-fin"></tbody></table></div></div>
       </div>
 
       <!-- Fluxo de Caixa -->
@@ -822,16 +827,47 @@ async function loadVendas(){
   let q=sb.from('vendas').select('*,clientes(nome)').order('created_at',{ascending:false}).limit(200);
   const ini=$('vf-ini').value,fim=$('vf-fim').value;
   if(ini)q=q.gte('data_venda',ini);if(fim)q=q.lte('data_venda',fim);
-  const[allV,lancRec]=await Promise.all([q,sb.from('lancamentos').select('valor,status').eq('tipo','receber')]);
+  const[allV,lancRec]=await Promise.all([q,sb.from('lancamentos').select('valor,status,referencia_id,referencia_tipo').eq('tipo','receber')]);
   let vData=allV.data||[];
+  const lancs=lancRec.data||[];
+
+  // Calcular status real de cada venda pelos seus lançamentos
+  const vendaStatus={};
+  lancs.filter(l=>l.referencia_tipo==='venda').forEach(l=>{
+    const vid=l.referencia_id;
+    if(!vendaStatus[vid]) vendaStatus[vid]={total:0,pago:0};
+    vendaStatus[vid].total++;
+    if(l.status==='pago') vendaStatus[vid].pago++;
+  });
+  // Determinar situação: se tem lançamentos, usa eles; se não, usa forma de pagamento
+  const getVendaSit=v=>{
+    const st=vendaStatus[v.id];
+    if(st) return st.pago>=st.total?'pago':'pendente';
+    // fallback: à vista = pago, crédito/fiado = pendente
+    return(v.forma_pagamento==='fiado'||v.forma_pagamento==='cartao_credito')?'pendente':'pago';
+  };
+
   const sitF=$('vf-sit').value;
-  if(sitF==='pago')vData=vData.filter(v=>v.forma_pagamento!=='fiado'&&v.forma_pagamento!=='cartao_credito');
-  else if(sitF==='pendente')vData=vData.filter(v=>v.forma_pagamento==='fiado'||v.forma_pagamento==='cartao_credito');
+  if(sitF==='pago') vData=vData.filter(v=>getVendaSit(v)==='pago');
+  else if(sitF==='pendente') vData=vData.filter(v=>getVendaSit(v)==='pendente');
+
   $('vk-total').textContent=fmt(sm(vData,'valor_total'));
-  $('vk-receber').textContent=fmt(sm((lancRec.data||[]).filter(l=>l.status==='pendente'),'valor'));
-  $('vk-recebido').textContent=fmt(sm((lancRec.data||[]).filter(l=>l.status==='pago'),'valor'));
+  $('vk-receber').textContent=fmt(sm(lancs.filter(l=>l.status==='pendente'),'valor'));
+  $('vk-recebido').textContent=fmt(sm(lancs.filter(l=>l.status==='pago'),'valor'));
   $('vk-qtd').textContent=vData.length;
-  $('tb-vendas').innerHTML=vData.length?vData.map(v=>{const isPend=v.forma_pagamento==='fiado'||v.forma_pagamento==='cartao_credito';return`<tr><td><strong>#${v.numero||v.id.slice(0,6)}</strong></td><td>${fmtD(v.data_venda)}</td><td>${v.clientes?.nome||'Consumidor'}</td><td>${pagtoLbl(v.forma_pagamento)}</td><td><strong>${fmt(v.valor_total)}</strong></td><td>${isPend?'<span class="badge badge-warn">A Receber</span>':'<span class="badge badge-success">Pago</span>'}</td><td><button class="btn btn-sm btn-secondary" onclick="verItens('vendas_itens','venda_id','${v.id}','Itens da Venda #'+(v.numero||''))">🧾 Itens</button></td></tr>`}).join(''):emptyR(7,'Nenhuma venda');
+  $('tb-vendas').innerHTML=vData.length?vData.map(v=>{
+    const sit=getVendaSit(v);
+    const st=vendaStatus[v.id];
+    const parcLabel=st&&st.total>1?` (${st.pago}/${st.total} pagas)`:'';
+    return`<tr>
+      <td><strong>#${v.numero||v.id.slice(0,6)}</strong></td>
+      <td>${fmtD(v.data_venda)}</td>
+      <td>${v.clientes?.nome||'Consumidor'}</td>
+      <td>${pagtoLbl(v.forma_pagamento)}</td>
+      <td><strong>${fmt(v.valor_total)}</strong></td>
+      <td>${sit==='pago'?'<span class="badge badge-success">Pago</span>':'<span class="badge badge-warn">A Receber'+parcLabel+'</span>'}</td>
+      <td><button class="btn btn-sm btn-secondary" onclick="verItens('vendas_itens','venda_id','${v.id}','Itens da Venda #'+(${v.numero||0}||''))">🧾 Itens</button></td>
+    </tr>`}).join(''):emptyR(7,'Nenhuma venda');
 }
 function toggleVmParc(){const show=$('vm-pagto').value==='cartao_credito'||$('vm-pagto').value==='fiado';$('vm-parc-wrap').style.display=show?'':'none';if(!show)$('vm-parc').value='1'}
 async function openVendaModal(){
@@ -909,17 +945,68 @@ async function loadEstoque(){
 
 // ═══════════ FINANCEIRO ═══════════
 function finTab(tipo){finTipo=tipo;document.querySelectorAll('#fin-tabs .tab').forEach(t=>t.classList.toggle('active',t.textContent.includes(tipo==='pagar'?'Pagar':tipo==='receber'?'Receber':'Todos')));loadFin(tipo)}
+
+// Cache de pessoas para o filtro
+let _finPessoas=[];
 async function loadFin(tipo){
   let q=sb.from('lancamentos').select('*').order('data_vencimento',{ascending:true});
   if(tipo&&tipo!=='todos')q=q.eq('tipo',tipo);
   const{data,error}=await q;
   if(error){console.error('loadFin:',error);return}
-  $('tb-fin').innerHTML=data?.length?data.map(l=>{
+  const lancs=data||[];
+
+  // Buscar vendas e compras vinculadas para obter cliente/fornecedor
+  const vendaIds=lancs.filter(l=>l.referencia_tipo==='venda'&&l.referencia_id).map(l=>l.referencia_id);
+  const compraIds=lancs.filter(l=>l.referencia_tipo==='compra'&&l.referencia_id).map(l=>l.referencia_id);
+  const[qV,qC]=await Promise.all([
+    vendaIds.length?sb.from('vendas').select('id,clientes(nome)').in('id',vendaIds):Promise.resolve({data:[]}),
+    compraIds.length?sb.from('compras').select('id,fornecedores(nome)').in('id',compraIds):Promise.resolve({data:[]})
+  ]);
+  const vendaMap={};(qV.data||[]).forEach(v=>vendaMap[v.id]=v.clientes?.nome||'');
+  const compraMap={};(qC.data||[]).forEach(c=>compraMap[c.id]=c.fornecedores?.nome||'');
+  const getPessoa=l=>{
+    if(l.referencia_tipo==='venda') return vendaMap[l.referencia_id]||'';
+    if(l.referencia_tipo==='compra') return compraMap[l.referencia_id]||'';
+    return '';
+  };
+
+  // Popular select de pessoas
+  const pessoas=[...new Set(lancs.map(l=>getPessoa(l)).filter(Boolean))].sort();
+  _finPessoas=pessoas;
+  const selP=$('fin-pessoa');
+  const curP=selP.value;
+  selP.innerHTML='<option value="">Todos</option>'+pessoas.map(p=>`<option value="${p}">${p}</option>`).join('');
+  if(curP)selP.value=curP;
+
+  // Aplicar filtros client-side
+  const buscaF=$('fin-busca').value.toLowerCase();
+  const pessoaF=selP.value;
+  const statusF=$('fin-status').value;
+  const rows=lancs.filter(l=>{
+    if(buscaF&&!l.descricao?.toLowerCase().includes(buscaF))return false;
+    if(pessoaF&&getPessoa(l)!==pessoaF)return false;
+    if(statusF&&l.status!==statusF)return false;
+    return true;
+  });
+
+  $('tb-fin').innerHTML=rows.length?rows.map(l=>{
     const pm=l.descricao?.match(/\((\d+\/\d+)\)/);const pt=pm?pm[1]:'—';
     const nm=l.observacoes?.match(/NF:\s*(\S+)/);
+    const pessoa=getPessoa(l);
     const dataPg=l.data_pagamento?fmtD(l.data_pagamento):'—';
-    return`<tr><td><strong>${l.descricao}</strong>${nm?'<br/><small style="color:var(--muted)">NF: '+nm[1]+'</small>':''}</td><td><span class="badge ${l.tipo==='pagar'?'badge-danger':'badge-success'}">${l.tipo==='pagar'?'Pagar':'Receber'}</span></td><td>${pt}</td><td>${fmtD(l.data_vencimento)}</td><td><strong>${fmt(l.valor)}</strong></td><td>${stLanc(l)}</td><td>${l.status==='pago'?'<span style="color:var(--success);font-weight:600">'+dataPg+'</span>':'—'}</td><td>${l.status==='pendente'?`<button class="btn btn-sm btn-success" onclick="openBaixa('${l.id}','${l.descricao.replace(/'/g,"\\'")}',${l.valor},'${l.tipo}')">✓ Baixar</button>`:''}</td></tr>`}).join(''):emptyR(8,'Nenhum lançamento');
+    return`<tr>
+      <td><strong>${l.descricao}</strong>${nm?'<br/><small style="color:var(--muted)">NF: '+nm[1]+'</small>':''}</td>
+      <td>${pessoa?`<span style="font-size:12px">${pessoa}</span>`:'<span style="color:var(--muted)">—</span>'}</td>
+      <td><span class="badge ${l.tipo==='pagar'?'badge-danger':'badge-success'}">${l.tipo==='pagar'?'Pagar':'Receber'}</span></td>
+      <td>${pt}</td>
+      <td>${fmtD(l.data_vencimento)}</td>
+      <td><strong>${fmt(l.valor)}</strong></td>
+      <td>${stLanc(l)}</td>
+      <td>${l.status==='pago'?'<span style="color:var(--success);font-weight:600">'+dataPg+'</span>':'—'}</td>
+      <td>${l.status==='pendente'?`<button class="btn btn-sm btn-success" onclick="openBaixa('${l.id}','${l.descricao.replace(/'/g,"\\'")}',${l.valor},'${l.tipo}')">✓ Baixar</button>`:''}</td>
+    </tr>`}).join(''):emptyR(9,'Nenhum lançamento');
 }
+function filtFin(){loadFin(finTipo)}
 function openLancamento(){
   $('modal-title').textContent='Novo Lançamento';
   $('modal-body').innerHTML=`<div class="form-grid"><div class="form-row"><div class="form-group"><label>Tipo *</label><select id="f-tipo"><option value="pagar">A Pagar</option><option value="receber">A Receber</option></select></div><div class="form-group"><label>Categoria</label><select id="f-cat"><option value="compra">Compra</option><option value="venda">Venda</option><option value="fixa">Despesa Fixa</option><option value="variavel">Variável</option><option value="outro">Outro</option></select></div></div><div class="form-group"><label>Descrição *</label><input id="f-desc"/></div><div class="form-row"><div class="form-group"><label>Valor R$ *</label><input id="f-valor" type="number" step="0.01"/></div><div class="form-group"><label>Vencimento *</label><input id="f-venc" type="date"/></div></div><div class="form-group"><label>Nº NF / Doc</label><input id="f-ndoc"/></div></div>`;
