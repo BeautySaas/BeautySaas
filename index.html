@@ -299,11 +299,11 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:14px 0}
       <!-- Estoque -->
       <div class="page" id="pg-estoque">
         <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
-          <div class="kpi rose"><div class="kpi-label">Produtos</div><div class="kpi-value" id="ek-total">—</div></div>
+          <div class="kpi rose"><div class="kpi-label">Produtos Ativos</div><div class="kpi-value" id="ek-total">—</div></div>
           <div class="kpi gold"><div class="kpi-label">Estoque Baixo</div><div class="kpi-value" id="ek-baixo">—</div></div>
           <div class="kpi success"><div class="kpi-label">Valor em Estoque</div><div class="kpi-value" id="ek-valor">R$ —</div></div>
         </div>
-        <div class="card"><div class="table-wrap"><table><thead><tr><th>Produto</th><th>Marca</th><th>Atual</th><th>Mínimo</th><th>Valor Custo</th><th>Situação</th></tr></thead><tbody id="tb-estoque"></tbody></table></div></div>
+        <div class="card"><div class="card-header"><div class="search-box" style="flex:1;max-width:260px"><span>🔍</span><input placeholder="Buscar produto..." oninput="filt('tbl-estoque',this.value)"/></div></div><div class="table-wrap"><table id="tbl-estoque"><thead><tr><th>Produto</th><th>Marca</th><th style="text-align:center;color:var(--success)">📥 Entradas</th><th style="text-align:center;color:var(--danger)">📤 Saídas</th><th style="text-align:center;font-weight:700">Saldo Atual</th><th>Mínimo</th><th>Valor Estoque</th><th>Situação</th></tr></thead><tbody id="tb-estoque"></tbody></table></div></div>
       </div>
 
       <!-- Financeiro -->
@@ -715,9 +715,11 @@ async function loadCompras(){
 }
 
 async function verItens(tabela,fk,id,titulo){
-  const{data}=await sb.from(tabela).select('*,produtos(nome,codigo)').eq(fk,id);
+  const{data,error}=await sb.from(tabela).select('*,produtos(nome,codigo)').eq(fk,id);
+  if(error){toast('Erro ao buscar itens: '+error.message,'error');console.error('verItens error:',error);return}
   $('modal-title').textContent=titulo;
-  $('modal-body').innerHTML=`<table style="width:100%;font-size:13px"><thead><tr style="background:var(--cream)"><th style="padding:8px">Produto</th><th style="padding:8px">Qtd</th><th style="padding:8px">Preço Unit.</th><th style="padding:8px">Subtotal</th></tr></thead><tbody>${(data||[]).map(i=>`<tr><td style="padding:8px">${i.produtos?.nome||'—'} ${i.produtos?.codigo?'<small style="color:var(--muted)">#'+i.produtos.codigo+'</small>':''}</td><td style="padding:8px">${i.quantidade}</td><td style="padding:8px">${fmt(i.preco_unitario)}</td><td style="padding:8px"><strong>${fmt(i.subtotal)}</strong></td></tr>`).join('')||'<tr><td colspan="4" style="padding:20px;text-align:center;color:var(--muted)">Nenhum item</td></tr>'}</tbody></table>`;
+  const rows=(data||[]);
+  $('modal-body').innerHTML=rows.length?`<table style="width:100%;font-size:13px"><thead><tr style="background:var(--cream)"><th style="padding:8px">Produto</th><th style="padding:8px">Qtd</th><th style="padding:8px">Preço Unit.</th><th style="padding:8px">Subtotal</th></tr></thead><tbody>${rows.map(i=>`<tr><td style="padding:8px">${i.produtos?.nome||'—'} ${i.produtos?.codigo?'<small style="color:var(--muted)">#'+i.produtos.codigo+'</small>':''}</td><td style="padding:8px">${i.quantidade}</td><td style="padding:8px">${fmt(i.preco_unitario)}</td><td style="padding:8px"><strong>${fmt(i.subtotal)}</strong></td></tr>`).join('')}</tbody></table>`:`<div class="empty"><span class="icon">📋</span><h4>Nenhum item encontrado</h4><p style="font-size:12px;color:var(--muted)">Verifique se as tabelas têm RLS habilitado com policy para o tenant.</p></div>`;
   $('modal-save').style.display='none';
   $('modal').style.display='flex';
 }
@@ -773,22 +775,26 @@ async function saveCompra(){
   const{data:last}=await sb.from('compras').select('numero').order('numero',{ascending:false}).limit(1);
   const num=(last?.[0]?.numero||0)+1;
 
-  // 2. Salvar compra
-  const{data:compra,error}=await sb.from('compras').insert(wt({
-    numero:num, fornecedor_id:forn, data_pedido:data, numero_nf:nf,
-    forma_pagamento:pagto, parcelas:parcelas,
-    data_vencimento_pagto:venc1,
-    valor_total:total, observacoes:(frete>0?'Frete: R$'+frete.toFixed(2)+(obs?'. '+obs:''):obs), status:'pendente'
-  })).select().single();
-  if(error){toast('Erro: '+error.message,'error');return}
+  // 2. Salvar compra (só colunas do schema original)
+  const compraObj=wt({numero:num,fornecedor_id:forn,data_pedido:data,forma_pagamento:pagto,valor_total:total,observacoes:[nf?'NF: '+nf:'',frete>0?'Frete: R$'+frete.toFixed(2):'',obs||''].filter(Boolean).join('. ')||null,status:'pendente'});
+  // Tentar campos opcionais do schema_v2/v3
+  try{compraObj.numero_nf=nf;compraObj.parcelas=parcelas;compraObj.data_vencimento_pagto=venc1}catch(e){}
+  const{data:compra,error}=await sb.from('compras').insert(compraObj).select().single();
+  if(error){
+    // Se falhou por colunas extras, tentar sem elas
+    delete compraObj.numero_nf;delete compraObj.parcelas;delete compraObj.data_vencimento_pagto;
+    const r2=await sb.from('compras').insert(compraObj).select().single();
+    if(r2.error){toast('Erro ao salvar compra: '+r2.error.message,'error');return}
+    Object.assign(compra||{},r2.data);
+  }
+  const compraId=(compra||{}).id;
+  if(!compraId){toast('Erro: compra sem ID','error');return}
 
   // 3. Salvar itens
+  let itensOk=0;
   for(const it of cItens){
-    await sb.from('compras_itens').insert(wt({
-      compra_id:compra.id, produto_id:it.produto_id,
-      quantidade:it.quantidade, preco_unitario:it.preco_unitario,
-      subtotal:it.quantidade*it.preco_unitario
-    }));
+    const{error:ie}=await sb.from('compras_itens').insert(wt({compra_id:compraId,produto_id:it.produto_id,quantidade:it.quantidade,preco_unitario:it.preco_unitario,subtotal:it.quantidade*it.preco_unitario}));
+    if(ie)console.error('Erro item compra:',ie);else itensOk++;
   }
 
   // 4. ESTOQUE: incrementar + movimentação
@@ -796,27 +802,21 @@ async function saveCompra(){
     const{data:prod}=await sb.from('produtos').select('estoque_atual,preco_custo').eq('id',it.produto_id).single();
     const estAnt=parseFloat(prod?.estoque_atual||0);
     const estNovo=estAnt+it.quantidade;
-    await sb.from('produtos').update({
-      estoque_atual:estNovo,
-      preco_custo:it.preco_unitario // atualiza custo com o mais recente
-    }).eq('id',it.produto_id);
-    await sb.from('estoque_movimentacoes').insert(wt({
-      produto_id:it.produto_id, tipo:'entrada', quantidade:it.quantidade,
-      saldo_anterior:estAnt, saldo_posterior:estNovo,
-      referencia_id:compra.id, referencia_tipo:'compra',
-      valor_unitario:it.preco_unitario, valor_total:it.quantidade*it.preco_unitario
-    }));
+    await sb.from('produtos').update({estoque_atual:estNovo,preco_custo:it.preco_unitario}).eq('id',it.produto_id);
+    const movObj=wt({produto_id:it.produto_id,tipo:'entrada',quantidade:it.quantidade,saldo_anterior:estAnt,saldo_posterior:estNovo,referencia_id:compraId,referencia_tipo:'compra',observacoes:'Compra #'+num});
+    const{error:me}=await sb.from('estoque_movimentacoes').insert(movObj);
+    if(me)console.error('Erro mov estoque:',me);
   }
 
-  // 5. CONTAS A PAGAR — gerar parcelas
+  // 5. CONTAS A PAGAR — gerar parcelas (só colunas do schema original)
   const valorParc=+(total/parcelas).toFixed(2);
+  let lancOk=0;
   for(let p=1;p<=parcelas;p++){
     const vencDate=new Date(venc1);
     vencDate.setMonth(vencDate.getMonth()+(p-1));
     const vencStr=vencDate.toISOString().slice(0,10);
-    // Ajuste na última parcela para evitar centavos perdidos
     const vlr=p===parcelas?+(total-valorParc*(parcelas-1)).toFixed(2):valorParc;
-    await sb.from('lancamentos').insert(wt({
+    const lancObj=wt({
       tipo:'pagar',
       descricao:`Compra #${num}${nf?' NF '+nf:''}${parcelas>1?' ('+p+'/'+parcelas+')':''}`,
       categoria:'compra',
@@ -824,15 +824,16 @@ async function saveCompra(){
       data_vencimento:vencStr,
       data_pagamento:null,
       status:'pendente',
-      referencia_id:compra.id,
+      referencia_id:compraId,
       referencia_tipo:'compra',
-      parcela_num:p,
-      parcela_total:parcelas,
-      numero_documento:nf
-    }));
+      observacoes:nf?'NF: '+nf:null
+    });
+    const{error:le}=await sb.from('lancamentos').insert(lancObj);
+    if(le){console.error('Erro lançamento compra:',le);toast('Erro lançamento: '+le.message,'error')}
+    else lancOk++;
   }
 
-  toast(`Compra #${num} registrada! ${cItens.length} produto(s) no estoque + ${parcelas} parcela(s) gerada(s).`,'success');
+  toast(`Compra #${num} salva! ${itensOk} item(ns), estoque atualizado, ${lancOk} parcela(s) gerada(s).`,'success');
   $('compra-modal').style.display='none';
   loadCompras();
 }
@@ -882,15 +883,18 @@ async function openVendaModal(){
   $('venda-modal').style.display='flex';
 }
 
-function addItemV(){
+async function addItemV(){
   if(!selProd){toast('Selecione um produto da lista','warn');return}
   const qtd=parseFloat($('vm-qtd').value)||1;
   const preco=parseFloat($('vm-preco').value)||selProd.preco_venda;
+  // Buscar estoque REAL do banco (não usar cache do autocomplete)
+  const{data:prodReal}=await sb.from('produtos').select('estoque_atual,nome').eq('id',selProd.id).single();
+  const estReal=parseFloat(prodReal?.estoque_atual||0);
   const jaAdd=vItens.find(i=>i.produto_id===selProd.id);
   const qtdTotal=qtd+(jaAdd?jaAdd.quantidade:0);
-  if(qtdTotal>selProd.estoque_atual){toast(`Estoque insuficiente! Disponível: ${selProd.estoque_atual} un.`,'error');return}
+  if(qtdTotal>estReal){toast(`Estoque insuficiente! "${prodReal?.nome}" tem apenas ${estReal} un. disponíveis.`,'error');return}
   if(jaAdd){jaAdd.quantidade+=qtd;jaAdd.preco_unitario=preco}
-  else vItens.push({produto_id:selProd.id,nome:selProd.nome,quantidade:qtd,preco_unitario:preco,estoque:selProd.estoque_atual});
+  else vItens.push({produto_id:selProd.id,nome:selProd.nome,quantidade:qtd,preco_unitario:preco,estoque:estReal});
   selProd=null;$('vm-busca').value='';$('vm-qtd').value=1;$('vm-preco').value='';
   renderVI();
 }
@@ -919,27 +923,28 @@ async function saveVenda(){
   const desc=parseFloat($('vm-desc').value)||0;
   const sub=vItens.reduce((s,i)=>s+i.quantidade*i.preco_unitario,0);
   const total=Math.max(0,sub-desc);
-  const obs=(desc>0?'Desconto: R$'+desc.toFixed(2)+'. ':'')+ ($('vm-obs').value||'') || null;
+  const obs=[desc>0?'Desconto: R$'+desc.toFixed(2):'', $('vm-obs').value||''].filter(Boolean).join('. ')||null;
 
   // 1. Número
   const{data:last}=await sb.from('vendas').select('numero').order('numero',{ascending:false}).limit(1);
   const num=(last?.[0]?.numero||0)+1;
 
-  // 2. Salvar venda
+  // 2. Salvar venda (só colunas do schema original)
   const{data:venda,error}=await sb.from('vendas').insert(wt({
     numero:num, cliente_id:cli, data_venda:dataV,
     forma_pagamento:pagto, valor_total:total,
     observacoes:obs, status:'finalizada'
   })).select().single();
-  if(error){toast('Erro: '+error.message,'error');return}
+  if(error){toast('Erro ao salvar venda: '+error.message,'error');return}
 
   // 3. Itens
   for(const it of vItens){
-    await sb.from('vendas_itens').insert(wt({
+    const{error:ie}=await sb.from('vendas_itens').insert(wt({
       venda_id:venda.id, produto_id:it.produto_id,
       quantidade:it.quantidade, preco_unitario:it.preco_unitario,
       subtotal:it.quantidade*it.preco_unitario
     }));
+    if(ie)console.error('Erro item venda:',ie);
   }
 
   // 4. ESTOQUE: decrementar
@@ -948,45 +953,42 @@ async function saveVenda(){
     const estAnt=parseFloat(prod?.estoque_atual||0);
     const estNovo=Math.max(0,estAnt-it.quantidade);
     await sb.from('produtos').update({estoque_atual:estNovo}).eq('id',it.produto_id);
-    await sb.from('estoque_movimentacoes').insert(wt({
-      produto_id:it.produto_id, tipo:'saida', quantidade:it.quantidade,
-      saldo_anterior:estAnt, saldo_posterior:estNovo,
-      referencia_id:venda.id, referencia_tipo:'venda',
-      valor_unitario:it.preco_unitario, valor_total:it.quantidade*it.preco_unitario
-    }));
+    const movObj=wt({produto_id:it.produto_id,tipo:'saida',quantidade:it.quantidade,saldo_anterior:estAnt,saldo_posterior:estNovo,referencia_id:venda.id,referencia_tipo:'venda',observacoes:'Venda #'+num});
+    const{error:me}=await sb.from('estoque_movimentacoes').insert(movObj);
+    if(me)console.error('Erro mov estoque:',me);
   }
 
-  // 5. CONTAS A RECEBER
+  // 5. CONTAS A RECEBER (só colunas do schema original)
   const isPrazo=pagto==='fiado'||pagto==='cartao_credito';
   if(isPrazo&&parcelas>1){
-    // Parcelado
     const valorParc=+(total/parcelas).toFixed(2);
+    let lancOk=0;
     for(let p=1;p<=parcelas;p++){
       const vencDate=new Date(dataV);
       vencDate.setDate(vencDate.getDate()+30*p);
       const vlr=p===parcelas?+(total-valorParc*(parcelas-1)).toFixed(2):valorParc;
-      await sb.from('lancamentos').insert(wt({
+      const{error:le}=await sb.from('lancamentos').insert(wt({
         tipo:'receber',
         descricao:`Venda #${num} (${p}/${parcelas})`,
         categoria:'venda', valor:vlr,
         data_vencimento:vencDate.toISOString().slice(0,10),
         status:'pendente',
-        referencia_id:venda.id, referencia_tipo:'venda',
-        parcela_num:p, parcela_total:parcelas
+        referencia_id:venda.id, referencia_tipo:'venda'
       }));
+      if(le){console.error('Erro lançamento venda:',le);toast('Erro lançamento: '+le.message,'error')}
+      else lancOk++;
     }
   } else {
-    // À vista ou fiado 1x
-    await sb.from('lancamentos').insert(wt({
+    const{error:le}=await sb.from('lancamentos').insert(wt({
       tipo:'receber',
       descricao:`Venda #${num}${pagto==='fiado'?' (Fiado)':''}`,
       categoria:'venda', valor:total,
       data_vencimento:isPrazo?new Date(Date.now()+30*864e5).toISOString().slice(0,10):dataV,
       data_pagamento:isPrazo?null:dataV,
       status:isPrazo?'pendente':'pago',
-      referencia_id:venda.id, referencia_tipo:'venda',
-      parcela_num:1, parcela_total:1
+      referencia_id:venda.id, referencia_tipo:'venda'
     }));
+    if(le){console.error('Erro lançamento venda:',le);toast('Erro lançamento: '+le.message,'error')}
   }
 
   // 6. Atualizar total_compras do cliente
@@ -1002,17 +1004,39 @@ async function saveVenda(){
 
 // ═══════════ ESTOQUE ═══════════
 async function loadEstoque(){
-  const{data}=await sb.from('produtos').select('nome,codigo,estoque_atual,estoque_minimo,preco_custo,marcas(nome)').eq('ativo',true).order('nome');
-  const prods=data||[];
+  const[prRes,movRes]=await Promise.all([
+    sb.from('produtos').select('id,nome,codigo,estoque_atual,estoque_minimo,preco_custo,marcas(nome)').eq('ativo',true).order('nome'),
+    sb.from('estoque_movimentacoes').select('produto_id,tipo,quantidade')
+  ]);
+  const prods=prRes.data||[];
+  const movs=movRes.data||[];
+  // Agrupar movimentações por produto
+  const entMap={},saiMap={};
+  movs.forEach(m=>{
+    if(m.tipo==='entrada') entMap[m.produto_id]=(entMap[m.produto_id]||0)+parseFloat(m.quantidade);
+    else saiMap[m.produto_id]=(saiMap[m.produto_id]||0)+parseFloat(m.quantidade);
+  });
   $('ek-total').textContent=prods.length;
   const baixo=prods.filter(p=>parseFloat(p.estoque_atual||0)<=parseFloat(p.estoque_minimo||0));
   $('ek-baixo').textContent=baixo.length;
   $('ek-valor').textContent=fmt(prods.reduce((s,p)=>s+parseFloat(p.estoque_atual||0)*parseFloat(p.preco_custo||0),0));
   $('tb-estoque').innerHTML=prods.length?prods.map(p=>{
-    const a=parseFloat(p.estoque_atual||0),m=parseFloat(p.estoque_minimo||0);
-    const sit=a<=0?'<span class="badge badge-danger">Zerado</span>':a<=m?'<span class="badge badge-warn">Baixo</span>':'<span class="badge badge-success">OK</span>';
-    return`<tr><td><strong>${p.nome}</strong>${p.codigo?'<br/><small style="color:var(--muted)">#'+p.codigo+'</small>':''}</td><td>${p.marcas?.nome||'—'}</td><td style="font-weight:600">${a}</td><td>${m}</td><td>${fmt(a*parseFloat(p.preco_custo||0))}</td><td>${sit}</td></tr>`
-  }).join(''):emptyR(6,'Nenhum produto');
+    const saldo=parseFloat(p.estoque_atual||0);
+    const min=parseFloat(p.estoque_minimo||0);
+    const ent=entMap[p.id]||0;
+    const sai=saiMap[p.id]||0;
+    const sit=saldo<=0?'<span class="badge badge-danger">Zerado</span>':saldo<=min?'<span class="badge badge-warn">Baixo</span>':'<span class="badge badge-success">OK</span>';
+    return`<tr>
+      <td><strong>${p.nome}</strong>${p.codigo?'<br/><small style="color:var(--muted)">#'+p.codigo+'</small>':''}</td>
+      <td>${p.marcas?.nome||'—'}</td>
+      <td style="text-align:center;color:var(--success);font-weight:600">${ent>0?'+'+ent:'0'}</td>
+      <td style="text-align:center;color:var(--danger);font-weight:600">${sai>0?'-'+sai:'0'}</td>
+      <td style="text-align:center;font-weight:700;font-size:15px">${saldo}</td>
+      <td>${min}</td>
+      <td>${fmt(saldo*parseFloat(p.preco_custo||0))}</td>
+      <td>${sit}</td>
+    </tr>`
+  }).join(''):emptyR(8,'Nenhum produto');
 }
 
 // ═══════════ FINANCEIRO ═══════════
@@ -1026,9 +1050,13 @@ async function loadFin(tipo){
   if(tipo&&tipo!=='todos')q=q.eq('tipo',tipo);
   const{data}=await q;
   $('tb-fin').innerHTML=data?.length?data.map(l=>{
-    const parcTxt=l.parcela_total>1?`${l.parcela_num}/${l.parcela_total}`:'—';
+    // Extrair parcela da descrição (ex: "Compra #1 (2/3)")
+    const parcMatch=l.descricao?.match(/\((\d+\/\d+)\)/);
+    const parcTxt=parcMatch?parcMatch[1]:'—';
+    // Extrair NF da observações
+    const nfMatch=l.observacoes?.match(/NF:\s*(\S+)/);
     return`<tr>
-      <td><strong>${l.descricao}</strong>${l.numero_documento?'<br/><small style="color:var(--muted)">NF: '+l.numero_documento+'</small>':''}</td>
+      <td><strong>${l.descricao}</strong>${nfMatch?'<br/><small style="color:var(--muted)">NF: '+nfMatch[1]+'</small>':''}</td>
       <td><span class="badge ${l.tipo==='pagar'?'badge-danger':'badge-success'}">${l.tipo==='pagar'?'Pagar':'Receber'}</span></td>
       <td>${parcTxt}</td>
       <td>${fmtD(l.data_vencimento)}</td>
@@ -1040,15 +1068,16 @@ async function loadFin(tipo){
 
 function openLancamento(){
   $('modal-title').textContent='Novo Lançamento';
-  $('modal-body').innerHTML=`<div class="form-grid"><div class="form-row"><div class="form-group"><label>Tipo *</label><select id="f-tipo"><option value="pagar">A Pagar</option><option value="receber">A Receber</option></select></div><div class="form-group"><label>Categoria</label><select id="f-cat"><option value="compra">Compra</option><option value="venda">Venda</option><option value="fixa">Despesa Fixa</option><option value="variavel">Despesa Variável</option><option value="outro">Outro</option></select></div></div><div class="form-group"><label>Descrição *</label><input id="f-desc"/></div><div class="form-row"><div class="form-group"><label>Valor R$ *</label><input id="f-valor" type="number" step="0.01"/></div><div class="form-group"><label>Vencimento *</label><input id="f-venc" type="date"/></div></div><div class="form-group"><label>Nº Documento</label><input id="f-ndoc"/></div></div>`;
+  $('modal-body').innerHTML=`<div class="form-grid"><div class="form-row"><div class="form-group"><label>Tipo *</label><select id="f-tipo"><option value="pagar">A Pagar</option><option value="receber">A Receber</option></select></div><div class="form-group"><label>Categoria</label><select id="f-cat"><option value="compra">Compra</option><option value="venda">Venda</option><option value="fixa">Despesa Fixa</option><option value="variavel">Despesa Variável</option><option value="outro">Outro</option></select></div></div><div class="form-group"><label>Descrição *</label><input id="f-desc"/></div><div class="form-row"><div class="form-group"><label>Valor R$ *</label><input id="f-valor" type="number" step="0.01"/></div><div class="form-group"><label>Vencimento *</label><input id="f-venc" type="date"/></div></div><div class="form-group"><label>Nº Documento / NF</label><input id="f-ndoc"/></div></div>`;
   $('modal-save').style.display='';
   modalCb=async()=>{
     const d=$('f-desc').value.trim(),v=parseFloat($('f-valor').value),vc=$('f-venc').value;
     if(!d||!v||!vc){toast('Preencha os campos obrigatórios','error');return false}
+    const ndoc=$('f-ndoc').value.trim();
     const{error}=await sb.from('lancamentos').insert(wt({
       tipo:$('f-tipo').value,descricao:d,categoria:$('f-cat').value,
       valor:v,data_vencimento:vc,status:'pendente',
-      numero_documento:$('f-ndoc').value||null,parcela_num:1,parcela_total:1
+      observacoes:ndoc?'NF: '+ndoc:null
     }));
     if(error){toast(error.message,'error');return false}
     toast('Lançamento salvo!');loadFin(finTipo);return true};
@@ -1074,11 +1103,14 @@ async function confirmarBaixa(){
   if(!bxId){toast('Erro','error');return}
   if(!bxContaId){toast('Selecione uma conta bancária','warn');return}
   const dataPg=$('bx-data').value;
-  const{error}=await sb.from('lancamentos').update({
-    status:'pago', data_pagamento:dataPg, data_baixa:dataPg,
-    conta_bancaria_id:bxContaId
-  }).eq('id',bxId);
-  if(error){toast(error.message,'error');return}
+  // Usar apenas colunas do schema original
+  const upd={status:'pago',data_pagamento:dataPg,conta_bancaria:bxContaId};
+  const{error}=await sb.from('lancamentos').update(upd).eq('id',bxId);
+  if(error){
+    // Fallback: sem conta_bancaria (campo pode não existir)
+    const{error:e2}=await sb.from('lancamentos').update({status:'pago',data_pagamento:dataPg}).eq('id',bxId);
+    if(e2){toast(e2.message,'error');return}
+  }
   // Atualizar saldo da conta
   const{data:lanc}=await sb.from('lancamentos').select('tipo,valor').eq('id',bxId).single();
   const{data:conta}=await sb.from('contas_bancarias').select('saldo_atual').eq('id',bxContaId).single();
@@ -1116,10 +1148,12 @@ async function loadFluxo(){
   $('fk-sal').textContent=fmt(ent-sai);$('fk-proj').textContent=fmt(entProj-saiProj);
 
   $('tb-fluxo').innerHTML=rows.length?rows.map(l=>{
-    const parcTxt=l.parcela_total>1?`${l.parcela_num}/${l.parcela_total}`:'—';
+    const parcMatch=l.descricao?.match(/\((\d+\/\d+)\)/);
+    const parcTxt=parcMatch?parcMatch[1]:'—';
+    const nfMatch=l.observacoes?.match(/NF:\s*(\S+)/);
     return`<tr>
       <td>${fmtD(l.data_vencimento)}</td>
-      <td>${l.descricao}${l.numero_documento?'<br/><small>NF: '+l.numero_documento+'</small>':''}</td>
+      <td>${l.descricao}${nfMatch?'<br/><small>NF: '+nfMatch[1]+'</small>':''}</td>
       <td>${l.categoria||'—'}</td>
       <td>${parcTxt}</td>
       <td><span class="badge ${l.tipo==='receber'?'badge-success':'badge-danger'}">${l.tipo==='receber'?'Entrada':'Saída'}</span></td>
