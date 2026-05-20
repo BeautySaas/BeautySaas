@@ -749,20 +749,53 @@ async function del(tbl,id){if(!confirm('Excluir?'))return;const{error}=await sb.
 // ═══════════ COMPRAS ═══════════
 async function loadCompras(){
   if(!$('cf-ini').value){$('cf-ini').value=mesIni();$('cf-fim').value=fimMes()}
-  // Populate fornecedores filter
   const{data:forns}=await sb.from('fornecedores').select('id,nome').order('nome');
   const selF=$('cf-forn');if(selF.options.length<=1)selF.innerHTML='<option value="">Todos</option>'+(forns||[]).map(f=>`<option value="${f.id}">${f.nome}</option>`).join('');
   let q=sb.from('compras').select('*,fornecedores(nome)').order('created_at',{ascending:false}).limit(200);
-  const ini=$('cf-ini').value,fim=$('cf-fim').value,fornF=$('cf-forn').value,sitF=$('cf-sit').value;
+  const ini=$('cf-ini').value,fim=$('cf-fim').value,fornF=$('cf-forn').value;
   if(ini)q=q.gte('data_pedido',ini);if(fim)q=q.lte('data_pedido',fim);
-  if(fornF)q=q.eq('fornecedor_id',fornF);if(sitF)q=q.eq('status',sitF);
-  const[allC,lancPag]=await Promise.all([q,sb.from('lancamentos').select('valor,status').eq('tipo','pagar')]);
+  if(fornF)q=q.eq('fornecedor_id',fornF);
+  const[allC,lancPag]=await Promise.all([q,sb.from('lancamentos').select('valor,status,referencia_id,referencia_tipo').eq('tipo','pagar')]);
   const cData=allC.data||[];
-  $('ck-total').textContent=fmt(sm(cData,'valor_total'));
-  $('ck-pagar').textContent=fmt(sm((lancPag.data||[]).filter(l=>l.status==='pendente'),'valor'));
-  $('ck-pago').textContent=fmt(sm((lancPag.data||[]).filter(l=>l.status==='pago'),'valor'));
-  $('ck-qtd').textContent=cData.length;
-  $('tb-compras').innerHTML=cData.length?cData.map(c=>{const parcs=parseInt(c.parcelas)||1;return`<tr><td><strong>#${c.numero||c.id.slice(0,6)}</strong></td><td>${c.numero_nf||c.observacoes?.match(/NF:\s*(\S+)/)?.[1]||'—'}</td><td>${fmtD(c.data_pedido)}</td><td>${c.fornecedores?.nome||'—'}</td><td>${pagtoLbl(c.forma_pagamento)}</td><td>${parcs>1?parcs+'x':'À vista'}</td><td><strong>${fmt(c.valor_total)}</strong></td><td>${c.status==='pago'?'<span class="badge badge-success">Pago</span>':'<span class="badge badge-warn">Pendente</span>'}</td><td><button class="btn btn-sm btn-secondary" onclick="verItens('compras_itens','compra_id','${c.id}','Itens da Compra #'+(c.numero||''))">📋 Itens</button></td></tr>`}).join(''):emptyR(9,'Nenhuma compra');
+  const lancs=lancPag.data||[];
+
+  // Status real de cada compra pelos lançamentos
+  const compraStatus={};
+  lancs.filter(l=>l.referencia_tipo==='compra').forEach(l=>{
+    if(!compraStatus[l.referencia_id]) compraStatus[l.referencia_id]={total:0,pago:0};
+    compraStatus[l.referencia_id].total++;
+    if(l.status==='pago') compraStatus[l.referencia_id].pago++;
+  });
+  const getCompraSit=c=>{
+    const st=compraStatus[c.id];
+    if(st) return st.pago>=st.total?'pago':'pendente';
+    return c.status||'pendente';
+  };
+
+  // Filtro situação pelo status real
+  const sitF=$('cf-sit').value;
+  let filtrado=cData;
+  if(sitF) filtrado=cData.filter(c=>getCompraSit(c)===sitF);
+
+  $('ck-total').textContent=fmt(sm(filtrado,'valor_total'));
+  $('ck-pagar').textContent=fmt(sm(lancs.filter(l=>l.status==='pendente'),'valor'));
+  $('ck-pago').textContent=fmt(sm(lancs.filter(l=>l.status==='pago'),'valor'));
+  $('ck-qtd').textContent=filtrado.length;
+  $('tb-compras').innerHTML=filtrado.length?filtrado.map(c=>{
+    const sit=getCompraSit(c);
+    const st=compraStatus[c.id];
+    const parcLabel=st&&st.total>1?` (${st.pago}/${st.total})`:'';
+    return`<tr>
+      <td><strong>#${c.numero||c.id.slice(0,6)}</strong></td>
+      <td>${c.numero_nf||c.observacoes?.match(/NF:\s*(\S+)/)?.[1]||'—'}</td>
+      <td>${fmtD(c.data_pedido)}</td>
+      <td>${c.fornecedores?.nome||'—'}</td>
+      <td>${pagtoLbl(c.forma_pagamento)}</td>
+      <td>${st?.total>1?st.total+'x':'À vista'}</td>
+      <td><strong>${fmt(c.valor_total)}</strong></td>
+      <td>${sit==='pago'?'<span class="badge badge-success">Pago</span>':'<span class="badge badge-warn">Pendente'+parcLabel+'</span>'}</td>
+      <td><button class="btn btn-sm btn-secondary" onclick="verItens('compras_itens','compra_id','${c.id}','Itens da Compra #'+(${c.numero||0}||''))">📋 Itens</button></td>
+    </tr>`}).join(''):emptyR(9,'Nenhuma compra');
 }
 async function verItens(tabela,fk,id,titulo){
   const{data,error}=await sb.from(tabela).select('*,produtos(nome,codigo)').eq(fk,id);
@@ -1003,7 +1036,7 @@ async function loadFin(tipo){
       <td><strong>${fmt(l.valor)}</strong></td>
       <td>${stLanc(l)}</td>
       <td>${l.status==='pago'?'<span style="color:var(--success);font-weight:600">'+dataPg+'</span>':'—'}</td>
-      <td>${l.status==='pendente'?`<button class="btn btn-sm btn-success" onclick="openBaixa('${l.id}','${l.descricao.replace(/'/g,"\\'")}',${l.valor},'${l.tipo}')">✓ Baixar</button>`:''}</td>
+      <td>${l.status==='pendente'?`<button class="btn btn-sm btn-success" onclick="openBaixa('${l.id}','${l.descricao.replace(/'/g,"\\'")}',${l.valor},'${l.tipo}','${l.referencia_id||''}','${l.referencia_tipo||''}')">✓ Baixar</button>`:''}</td>
     </tr>`}).join(''):emptyR(9,'Nenhum lançamento');
 }
 function filtFin(){loadFin(finTipo)}
@@ -1016,8 +1049,9 @@ function openLancamento(){
 }
 
 // ═══════════ BAIXA ═══════════
-async function openBaixa(id,desc,valor,tipo){
-  bxId=id;bxContaId=null;
+let bxRefId=null,bxRefTipo=null;
+async function openBaixa(id,desc,valor,tipo,refId,refTipo){
+  bxId=id;bxContaId=null;bxRefId=refId||null;bxRefTipo=refTipo||null;
   $('bx-title').textContent=tipo==='pagar'?'Baixar Pagamento':'Registrar Recebimento';
   $('bx-desc').textContent=desc;$('bx-valor').textContent=fmt(valor);$('bx-data').value=hoje();
   const{data:contas}=await sb.from('contas_bancarias').select('*').eq('ativo',true).order('nome');
@@ -1025,15 +1059,48 @@ async function openBaixa(id,desc,valor,tipo){
   $('baixa-modal').style.display='flex';
 }
 function selConta(el,id){document.querySelectorAll('.conta-opcao').forEach(e=>e.classList.remove('selected'));el.classList.add('selected');bxContaId=id}
+
 async function confirmarBaixa(){
-  if(!bxId){toast('Erro','error');return}if(!bxContaId){toast('Selecione conta','warn');return}
+  if(!bxId){toast('Erro','error');return}
+  if(!bxContaId){toast('Selecione conta','warn');return}
   const dp=$('bx-data').value;
+
+  // 1. Baixar o lançamento
   const{error}=await sb.from('lancamentos').update({status:'pago',data_pagamento:dp}).eq('id',bxId);
   if(error){toast(error.message,'error');return}
-  const{data:lanc}=await sb.from('lancamentos').select('tipo,valor').eq('id',bxId).single();
+
+  // 2. Atualizar saldo da conta bancária
+  const{data:lanc}=await sb.from('lancamentos').select('tipo,valor,referencia_id,referencia_tipo').eq('id',bxId).single();
   const{data:conta}=await sb.from('contas_bancarias').select('saldo_atual').eq('id',bxContaId).single();
-  if(lanc&&conta){const delta=lanc.tipo==='receber'?parseFloat(lanc.valor):-parseFloat(lanc.valor);await sb.from('contas_bancarias').update({saldo_atual:parseFloat(conta.saldo_atual||0)+delta}).eq('id',bxContaId)}
-  toast('Baixa realizada!','success');$('baixa-modal').style.display='none';
+  if(lanc&&conta){
+    const delta=lanc.tipo==='receber'?parseFloat(lanc.valor):-parseFloat(lanc.valor);
+    await sb.from('contas_bancarias').update({saldo_atual:parseFloat(conta.saldo_atual||0)+delta}).eq('id',bxContaId);
+  }
+
+  // 3. Verificar se TODAS as parcelas da venda/compra foram pagas → atualizar status
+  const refId=lanc?.referencia_id||bxRefId;
+  const refTipo=lanc?.referencia_tipo||bxRefTipo;
+  if(refId&&refTipo){
+    const{data:todasParc}=await sb.from('lancamentos').select('status').eq('referencia_id',refId).eq('referencia_tipo',refTipo);
+    const total=todasParc?.length||0;
+    const pagas=todasParc?.filter(p=>p.status==='pago').length||0;
+    const todasPagas=total>0&&pagas>=total;
+
+    if(refTipo==='venda'){
+      await sb.from('vendas').update({status:todasPagas?'pago':'pendente'}).eq('id',refId);
+    } else if(refTipo==='compra'){
+      await sb.from('compras').update({status:todasPagas?'pago':'pendente'}).eq('id',refId);
+    }
+
+    const msg=todasPagas
+      ?`Baixa realizada! ✅ ${refTipo==='venda'?'Venda':'Compra'} totalmente quitada.`
+      :`Baixa realizada! (${pagas}/${total} parcelas pagas)`;
+    toast(msg,'success');
+  } else {
+    toast('Baixa realizada!','success');
+  }
+
+  $('baixa-modal').style.display='none';
   go(curPage);
 }
 
