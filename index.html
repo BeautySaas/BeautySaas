@@ -332,7 +332,7 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:14px 0}
           <div class="tab" onclick="finTab('receber')">💰 A Receber</div>
           <div class="tab" onclick="finTab('todos')">📋 Todos</div>
         </div>
-        <div class="card"><div class="table-wrap"><table><thead><tr><th>Descrição</th><th>Categoria</th><th>Parcela</th><th>Vencimento</th><th>Valor</th><th>Status</th><th>Ações</th></tr></thead><tbody id="tb-fin"></tbody></table></div></div>
+        <div class="card"><div class="table-wrap"><table><thead><tr><th>Descrição</th><th>Categoria</th><th>Parcela</th><th>Vencimento</th><th>Valor</th><th>Status</th><th>Pago/Recebido em</th><th>Ações</th></tr></thead><tbody id="tb-fin"></tbody></table></div></div>
       </div>
 
       <!-- Fluxo de Caixa -->
@@ -628,7 +628,8 @@ async function loadDashboard(){
 // ═══════════ MARCAS ═══════════
 async function loadMarcas(){
   const{data,error}=await sb.from('marcas').select('*').order('nome');
-  if(error){console.error('loadMarcas:',error);toast('Erro ao carregar marcas: '+error.message,'error');return}
+  console.log('loadMarcas:',data?.length||0,'rows',error||'ok');
+  if(error){toast('Erro marcas: '+error.message,'error');return}
   const{data:pr}=await sb.from('produtos').select('marca_id');
   const cnt={};(pr||[]).forEach(p=>{if(p.marca_id)cnt[p.marca_id]=(cnt[p.marca_id]||0)+1});
   $('tb-marcas').innerHTML=data?.length?data.map(m=>`<tr><td><strong>${m.nome}</strong></td><td>${m.descricao||'—'}</td><td><span class="badge badge-ink">${cnt[m.id]||0}</span></td><td>${m.ativo?'<span class="badge badge-success">Ativo</span>':'<span class="badge badge-muted">Inativo</span>'}</td><td><button class="btn btn-sm btn-secondary" onclick="openMarca('${m.id}')">✏️</button> <button class="btn btn-sm btn-danger" onclick="del('marcas','${m.id}')">🗑</button></td></tr>`).join(''):emptyR(5,'Nenhuma marca cadastrada');
@@ -666,8 +667,9 @@ async function openProduto(id){
 // ═══════════ CLIENTES ═══════════
 async function loadClientes(){
   const{data,error}=await sb.from('clientes').select('*').order('nome');
-  if(error){console.error('loadClientes:',error);toast('Erro: '+error.message,'error');return}
-  $('tb-clientes').innerHTML=data?.length?data.map(c=>`<tr><td><strong>${c.nome}</strong><br/><small style="color:var(--muted)">${c.email||''}</small></td><td>${c.telefone||c.whatsapp||'—'}</td><td>${fmtD(c.data_nascimento)}</td><td>${c.cidade||'—'}</td><td>${fmtD(c.created_at)}</td><td>${fmt(c.total_compras||0)}</td><td>${c.classificacao==='vip'?'<span class="badge badge-warn">⭐ VIP</span>':c.classificacao==='inativo'?'<span class="badge badge-muted">Inativo</span>':'<span class="badge badge-rose">Regular</span>'}</td><td><button class="btn btn-sm btn-secondary" onclick="openCliente('${c.id}')">✏️</button> <button class="btn btn-sm btn-danger" onclick="del('clientes','${c.id}')">🗑</button></td></tr>`).join(''):emptyR(8,'Nenhum cliente');
+  console.log('loadClientes:',data?.length||0,'rows',error||'ok');
+  if(error){toast('Erro clientes: '+error.message,'error');return}
+  $('tb-clientes').innerHTML=data?.length?data.map(c=>`<tr><td><strong>${c.nome}</strong><br/><small style="color:var(--muted)">${c.email||''}</small></td><td>${c.telefone||c.whatsapp||'—'}</td><td>${fmtD(c.data_nascimento)}</td><td>${c.cidade||'—'}</td><td>${fmtD(c.created_at)}</td><td>${fmt(c.total_compras||0)}</td><td>${c.classificacao==='vip'?'<span class="badge badge-warn">⭐ VIP</span>':c.classificacao==='inativo'?'<span class="badge badge-muted">Inativo</span>':'<span class="badge badge-rose">Regular</span>'}</td><td><button class="btn btn-sm btn-secondary" onclick="openCliente('${c.id}')">✏️</button> <button class="btn btn-sm btn-danger" onclick="del('clientes','${c.id}')">🗑</button></td></tr>`).join(''):emptyR(8,'Nenhum cliente — cadastre o primeiro!');
 }
 function openCliente(id){
   $('modal-title').textContent=id?'Editar Cliente':'Novo Cliente';
@@ -681,7 +683,8 @@ function openCliente(id){
 // ═══════════ FORNECEDORES ═══════════
 async function loadFornecedores(){
   const{data,error}=await sb.from('fornecedores').select('*').order('nome');
-  if(error){console.error('loadFornecedores:',error);toast('Erro: '+error.message,'error');return}
+  console.log('loadFornecedores:',data?.length||0,'rows',error||'ok');
+  if(error){toast('Erro fornecedores: '+error.message,'error');return}
   $('tb-fornecedores').innerHTML=data?.length?data.map(f=>`<tr><td><strong>${f.nome}</strong></td><td>${f.cnpj||'—'}</td><td>${f.contato||'—'}</td><td>${f.telefone||'—'}</td><td>${f.prazo_entrega_dias?f.prazo_entrega_dias+' dias':'—'}</td><td><button class="btn btn-sm btn-secondary" onclick="openFornecedor('${f.id}')">✏️</button> <button class="btn btn-sm btn-danger" onclick="del('fornecedores','${f.id}')">🗑</button></td></tr>`).join(''):emptyR(6,'Nenhum fornecedor');
 }
 function openFornecedor(id){
@@ -904,7 +907,8 @@ async function loadFin(tipo){
   $('tb-fin').innerHTML=data?.length?data.map(l=>{
     const pm=l.descricao?.match(/\((\d+\/\d+)\)/);const pt=pm?pm[1]:'—';
     const nm=l.observacoes?.match(/NF:\s*(\S+)/);
-    return`<tr><td><strong>${l.descricao}</strong>${nm?'<br/><small style="color:var(--muted)">NF: '+nm[1]+'</small>':''}</td><td><span class="badge ${l.tipo==='pagar'?'badge-danger':'badge-success'}">${l.tipo==='pagar'?'Pagar':'Receber'}</span></td><td>${pt}</td><td>${fmtD(l.data_vencimento)}</td><td><strong>${fmt(l.valor)}</strong></td><td>${stLanc(l)}</td><td>${l.status==='pendente'?`<button class="btn btn-sm btn-success" onclick="openBaixa('${l.id}','${l.descricao.replace(/'/g,"\\'")}',${l.valor},'${l.tipo}')">✓ Baixar</button>`:l.data_pagamento?'<small style="color:var(--muted)">'+fmtD(l.data_pagamento)+'</small>':''}</td></tr>`}).join(''):emptyR(7,'Nenhum lançamento');
+    const dataPg=l.data_pagamento?fmtD(l.data_pagamento):'—';
+    return`<tr><td><strong>${l.descricao}</strong>${nm?'<br/><small style="color:var(--muted)">NF: '+nm[1]+'</small>':''}</td><td><span class="badge ${l.tipo==='pagar'?'badge-danger':'badge-success'}">${l.tipo==='pagar'?'Pagar':'Receber'}</span></td><td>${pt}</td><td>${fmtD(l.data_vencimento)}</td><td><strong>${fmt(l.valor)}</strong></td><td>${stLanc(l)}</td><td>${l.status==='pago'?'<span style="color:var(--success);font-weight:600">'+dataPg+'</span>':'—'}</td><td>${l.status==='pendente'?`<button class="btn btn-sm btn-success" onclick="openBaixa('${l.id}','${l.descricao.replace(/'/g,"\\'")}',${l.valor},'${l.tipo}')">✓ Baixar</button>`:''}</td></tr>`}).join(''):emptyR(8,'Nenhum lançamento');
 }
 function openLancamento(){
   $('modal-title').textContent='Novo Lançamento';
@@ -940,7 +944,8 @@ async function confirmarBaixa(){
 async function loadFluxo(){
   if(!$('fl-ini').value){$('fl-ini').value=mesIni();$('fl-fim').value=fimMes()}
   const ini=$('fl-ini').value,fim=$('fl-fim').value;
-  const{data}=await sb.from('lancamentos').select('*').gte('data_vencimento',ini).lte('data_vencimento',fim).order('data_vencimento');
+  const{data,error}=await sb.from('lancamentos').select('*').gte('data_vencimento',ini).lte('data_vencimento',fim).order('data_vencimento');
+  if(error){console.error('loadFluxo:',error);toast('Erro fluxo: '+error.message,'error');return}
   const rows=data||[];
   const ent=sm(rows.filter(r=>r.tipo==='receber'&&r.status==='pago'),'valor');
   const sai=sm(rows.filter(r=>r.tipo==='pagar'&&r.status==='pago'),'valor');
@@ -948,19 +953,22 @@ async function loadFluxo(){
   const saiP=sm(rows.filter(r=>r.tipo==='pagar'),'valor');
   $('fk-ent').textContent=fmt(ent);$('fk-sai').textContent=fmt(sai);
   $('fk-sal').textContent=fmt(ent-sai);$('fk-proj').textContent=fmt(entP-saiP);
-  let saldoAcum=0;
+  let saldoReal=0,saldoProj=0;
   $('tb-fluxo').innerHTML=rows.length?rows.map(l=>{
     const v=parseFloat(l.valor||0);
-    if(l.status==='pago') saldoAcum+=(l.tipo==='receber'?v:-v);
+    const delta=l.tipo==='receber'?v:-v;
+    saldoProj+=delta;
+    if(l.status==='pago') saldoReal+=delta;
     const pm=l.descricao?.match(/\((\d+\/\d+)\)/);
-    return`<tr>
-      <td>${fmtD(l.data_vencimento)}</td>
+    const saldoShow=l.status==='pago'?saldoReal:saldoProj;
+    return`<tr style="${l.status!=='pago'?'opacity:0.7':''}">
+      <td>${fmtD(l.status==='pago'&&l.data_pagamento?l.data_pagamento:l.data_vencimento)}</td>
       <td>${l.descricao}</td>
       <td>${pm?pm[1]:'—'}</td>
       <td><span class="badge ${l.tipo==='receber'?'badge-success':'badge-danger'}">${l.tipo==='receber'?'Entrada':'Saída'}</span></td>
       <td style="font-weight:600;color:${l.tipo==='receber'?'var(--success)':'var(--danger)'}">${l.tipo==='receber'?'+':'-'} ${fmt(v)}</td>
       <td>${stLanc(l)}</td>
-      <td style="text-align:right;font-weight:700;color:${saldoAcum>=0?'var(--success)':'var(--danger)'}">${l.status==='pago'?fmt(saldoAcum):'<small style="color:var(--muted)">—</small>'}</td>
+      <td style="text-align:right;font-weight:700;color:${saldoShow>=0?'var(--success)':'var(--danger)'}">${fmt(saldoShow)}${l.status!=='pago'?' <small style="color:var(--muted)">(proj)</small>':''}</td>
     </tr>`}).join(''):emptyR(7,'Sem lançamentos no período');
 }
 
