@@ -777,8 +777,8 @@ async function saveCompra(){
   const{data:compra,error}=await sb.from('compras').insert(wt({
     numero:num, fornecedor_id:forn, data_pedido:data, numero_nf:nf,
     forma_pagamento:pagto, parcelas:parcelas,
-    data_vencimento_pagto:venc1, valor_frete:frete,
-    valor_total:total, observacoes:obs, status:'pendente'
+    data_vencimento_pagto:venc1,
+    valor_total:total, observacoes:(frete>0?'Frete: R$'+frete.toFixed(2)+(obs?'. '+obs:''):obs), status:'pendente'
   })).select().single();
   if(error){toast('Erro: '+error.message,'error');return}
 
