@@ -886,9 +886,10 @@ function addItemV(){
   if(!selProd){toast('Selecione um produto da lista','warn');return}
   const qtd=parseFloat($('vm-qtd').value)||1;
   const preco=parseFloat($('vm-preco').value)||selProd.preco_venda;
-  if(qtd>selProd.estoque_atual){toast(`Estoque insuficiente (${selProd.estoque_atual} disponíveis)`,'warn')}
-  const ex=vItens.find(i=>i.produto_id===selProd.id);
-  if(ex){ex.quantidade+=qtd;ex.preco_unitario=preco}
+  const jaAdd=vItens.find(i=>i.produto_id===selProd.id);
+  const qtdTotal=qtd+(jaAdd?jaAdd.quantidade:0);
+  if(qtdTotal>selProd.estoque_atual){toast(`Estoque insuficiente! Disponível: ${selProd.estoque_atual} un.`,'error');return}
+  if(jaAdd){jaAdd.quantidade+=qtd;jaAdd.preco_unitario=preco}
   else vItens.push({produto_id:selProd.id,nome:selProd.nome,quantidade:qtd,preco_unitario:preco,estoque:selProd.estoque_atual});
   selProd=null;$('vm-busca').value='';$('vm-qtd').value=1;$('vm-preco').value='';
   renderVI();
@@ -905,6 +906,12 @@ function calcTotalV(){
 
 async function saveVenda(){
   if(!vItens.length){toast('Adicione ao menos 1 produto','error');return}
+  // Validar estoque ANTES de salvar
+  for(const it of vItens){
+    const{data:p}=await sb.from('produtos').select('estoque_atual,nome').eq('id',it.produto_id).single();
+    const est=parseFloat(p?.estoque_atual||0);
+    if(it.quantidade>est){toast(`Estoque insuficiente: "${p?.nome}" tem apenas ${est} un. (pedido: ${it.quantidade})`,'error');return}
+  }
   const cli=$('vm-cli').value||null;
   const dataV=$('vm-data').value;
   const pagto=$('vm-pagto').value;
@@ -912,7 +919,7 @@ async function saveVenda(){
   const desc=parseFloat($('vm-desc').value)||0;
   const sub=vItens.reduce((s,i)=>s+i.quantidade*i.preco_unitario,0);
   const total=Math.max(0,sub-desc);
-  const obs=$('vm-obs').value||null;
+  const obs=(desc>0?'Desconto: R$'+desc.toFixed(2)+'. ':'')+ ($('vm-obs').value||'') || null;
 
   // 1. Número
   const{data:last}=await sb.from('vendas').select('numero').order('numero',{ascending:false}).limit(1);
@@ -921,8 +928,7 @@ async function saveVenda(){
   // 2. Salvar venda
   const{data:venda,error}=await sb.from('vendas').insert(wt({
     numero:num, cliente_id:cli, data_venda:dataV,
-    forma_pagamento:pagto, valor_produtos:sub,
-    valor_desconto:desc, valor_total:total,
+    forma_pagamento:pagto, valor_total:total,
     observacoes:obs, status:'finalizada'
   })).select().single();
   if(error){toast('Erro: '+error.message,'error');return}
