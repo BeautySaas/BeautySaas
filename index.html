@@ -337,9 +337,19 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:14px 0}
 
       <!-- Fluxo de Caixa -->
       <div class="page" id="pg-fluxo">
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:flex-end">
-          <div class="form-group"><label>De</label><input type="date" id="fl-ini" onchange="loadFluxo()" style="padding:5px 8px;font-size:12px"/></div>
-          <div class="form-group"><label>Até</label><input type="date" id="fl-fim" onchange="loadFluxo()" style="padding:5px 8px;font-size:12px"/></div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;align-items:flex-end">
+          <div style="display:flex;gap:6px;align-items:flex-end;background:var(--cream);border:1px solid var(--border);border-radius:8px;padding:8px 12px">
+            <span style="font-size:11px;font-weight:600;color:var(--success);letter-spacing:.5px;align-self:center">💰 PAGAMENTO</span>
+            <div class="form-group" style="margin:0"><label style="font-size:11px">De</label><input type="date" id="fl-pg-ini" onchange="loadFluxo()" style="padding:5px 8px;font-size:12px"/></div>
+            <div class="form-group" style="margin:0"><label style="font-size:11px">Até</label><input type="date" id="fl-pg-fim" onchange="loadFluxo()" style="padding:5px 8px;font-size:12px"/></div>
+            <button onclick="$('fl-pg-ini').value='';$('fl-pg-fim').value='';loadFluxo()" title="Limpar" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px;padding:0 2px;align-self:flex-end;margin-bottom:2px">✕</button>
+          </div>
+          <div style="display:flex;gap:6px;align-items:flex-end;background:var(--cream);border:1px solid var(--border);border-radius:8px;padding:8px 12px">
+            <span style="font-size:11px;font-weight:600;color:var(--gold);letter-spacing:.5px;align-self:center">📅 VENCIMENTO</span>
+            <div class="form-group" style="margin:0"><label style="font-size:11px">De</label><input type="date" id="fl-vc-ini" onchange="loadFluxo()" style="padding:5px 8px;font-size:12px"/></div>
+            <div class="form-group" style="margin:0"><label style="font-size:11px">Até</label><input type="date" id="fl-vc-fim" onchange="loadFluxo()" style="padding:5px 8px;font-size:12px"/></div>
+            <button onclick="$('fl-vc-ini').value='';$('fl-vc-fim').value='';loadFluxo()" title="Limpar" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px;padding:0 2px;align-self:flex-end;margin-bottom:2px">✕</button>
+          </div>
         </div>
         <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr)">
           <div class="kpi rose"><div class="kpi-label">Entradas</div><div class="kpi-value" id="fk-ent">R$ —</div></div>
@@ -942,34 +952,65 @@ async function confirmarBaixa(){
 
 // ═══════════ FLUXO DE CAIXA (extrato com saldo acumulado) ═══════════
 async function loadFluxo(){
-  if(!$('fl-ini').value){$('fl-ini').value=mesIni();$('fl-fim').value=fimMes()}
-  const ini=$('fl-ini').value,fim=$('fl-fim').value;
-  const{data,error}=await sb.from('lancamentos').select('*').gte('data_vencimento',ini).lte('data_vencimento',fim).order('data_vencimento');
-  if(error){console.error('loadFluxo:',error);toast('Erro fluxo: '+error.message,'error');return}
-  const rows=data||[];
-  const ent=sm(rows.filter(r=>r.tipo==='receber'&&r.status==='pago'),'valor');
-  const sai=sm(rows.filter(r=>r.tipo==='pagar'&&r.status==='pago'),'valor');
-  const entP=sm(rows.filter(r=>r.tipo==='receber'),'valor');
-  const saiP=sm(rows.filter(r=>r.tipo==='pagar'),'valor');
+  const pgIni=$('fl-pg-ini').value, pgFim=$('fl-pg-fim').value;
+  const vcIni=$('fl-vc-ini').value, vcFim=$('fl-vc-fim').value;
+
+  // Se nenhum filtro definido, inicializa pagamento com o mês atual
+  if(!pgIni&&!pgFim&&!vcIni&&!vcFim){
+    $('fl-pg-ini').value=mesIni();$('fl-pg-fim').value=fimMes();
+    loadFluxo();return;
+  }
+
+  // Query pagos — filtra por data_pagamento se filtro pagamento preenchido
+  let qPagoBase=sb.from('lancamentos').select('*').eq('status','pago');
+  if(pgIni) qPagoBase=qPagoBase.gte('data_pagamento',pgIni);
+  if(pgFim) qPagoBase=qPagoBase.lte('data_pagamento',pgFim);
+  // Se também tem filtro vencimento, aplica no pago
+  if(vcIni) qPagoBase=qPagoBase.gte('data_vencimento',vcIni);
+  if(vcFim) qPagoBase=qPagoBase.lte('data_vencimento',vcFim);
+
+  // Query pendentes — filtra por data_vencimento se filtro vencimento preenchido
+  let qPendBase=sb.from('lancamentos').select('*').eq('status','pendente');
+  if(vcIni) qPendBase=qPendBase.gte('data_vencimento',vcIni);
+  if(vcFim) qPendBase=qPendBase.lte('data_vencimento',vcFim);
+  // Se tem filtro pagamento mas não vencimento, não busca pendentes (pendente não tem data_pagamento)
+  const buscarPend=vcIni||vcFim||((!pgIni)&&(!pgFim));
+
+  const promises=[qPagoBase];
+  if(buscarPend) promises.push(qPendBase);
+  const results=await Promise.all(promises);
+
+  const pagos=(results[0].data||[]).sort((a,b)=>(a.data_pagamento||'')>(b.data_pagamento||'')?1:-1);
+  const pendentes=buscarPend?(results[1].data||[]).sort((a,b)=>(a.data_vencimento||'')>(b.data_vencimento||'')?1:-1):[];
+  const rows=[...pagos,...pendentes];
+
+  const ent=sm(pagos.filter(r=>r.tipo==='receber'),'valor');
+  const sai=sm(pagos.filter(r=>r.tipo==='pagar'),'valor');
+  const entP=ent+sm(pendentes.filter(r=>r.tipo==='receber'),'valor');
+  const saiP=sai+sm(pendentes.filter(r=>r.tipo==='pagar'),'valor');
   $('fk-ent').textContent=fmt(ent);$('fk-sai').textContent=fmt(sai);
   $('fk-sal').textContent=fmt(ent-sai);$('fk-proj').textContent=fmt(entP-saiP);
+
   let saldoReal=0,saldoProj=0;
   $('tb-fluxo').innerHTML=rows.length?rows.map(l=>{
     const v=parseFloat(l.valor||0);
     const delta=l.tipo==='receber'?v:-v;
+    const pago=l.status==='pago';
+    if(pago) saldoReal+=delta;
     saldoProj+=delta;
-    if(l.status==='pago') saldoReal+=delta;
     const pm=l.descricao?.match(/\((\d+\/\d+)\)/);
-    const saldoShow=l.status==='pago'?saldoReal:saldoProj;
-    return`<tr style="${l.status!=='pago'?'opacity:0.7':''}">
-      <td>${fmtD(l.status==='pago'&&l.data_pagamento?l.data_pagamento:l.data_vencimento)}</td>
+    const dataExib=pago&&l.data_pagamento?l.data_pagamento:l.data_vencimento;
+    const saldoShow=pago?saldoReal:saldoProj;
+    return`<tr style="${!pago?'opacity:0.65':''}">
+      <td>${fmtD(dataExib)}<br/><small style="color:var(--muted);font-size:10px">${pago?'pagamento':'vencimento'}</small></td>
       <td>${l.descricao}</td>
       <td>${pm?pm[1]:'—'}</td>
       <td><span class="badge ${l.tipo==='receber'?'badge-success':'badge-danger'}">${l.tipo==='receber'?'Entrada':'Saída'}</span></td>
       <td style="font-weight:600;color:${l.tipo==='receber'?'var(--success)':'var(--danger)'}">${l.tipo==='receber'?'+':'-'} ${fmt(v)}</td>
       <td>${stLanc(l)}</td>
-      <td style="text-align:right;font-weight:700;color:${saldoShow>=0?'var(--success)':'var(--danger)'}">${fmt(saldoShow)}${l.status!=='pago'?' <small style="color:var(--muted)">(proj)</small>':''}</td>
-    </tr>`}).join(''):emptyR(7,'Sem lançamentos no período');
+      <td style="text-align:right;font-weight:700;color:${saldoShow>=0?'var(--success)':'var(--danger)'}">${fmt(saldoShow)}${!pago?'<small style="color:var(--muted);font-weight:400"> proj</small>':''}</td>
+    </tr>`
+  }).join(''):emptyR(7,'Sem lançamentos no período');
 }
 
 // ═══════════ PLANOS ═══════════
