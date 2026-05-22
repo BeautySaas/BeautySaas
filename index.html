@@ -798,10 +798,33 @@ async function loadCompras(){
     </tr>`}).join(''):emptyR(9,'Nenhuma compra');
 }
 async function verItens(tabela,fk,id,titulo){
-  const{data,error}=await sb.from(tabela).select('*,produtos(nome,codigo)').eq(fk,id);
-  if(error){toast('Erro: '+error.message,'error');return}
+  const cols=tabela==='vendas_itens'
+    ?'id,quantidade,preco_unitario,produto_id,produtos(nome,codigo)'
+    :'id,quantidade,preco_unitario,produto_id,produtos(nome,codigo)';
+  const{data,error}=await sb.from(tabela).select(cols).eq(fk,id);
+  if(error){console.error('verItens erro:',error);toast('Erro: '+error.message,'error');return}
+  const calc=i=>parseFloat(i.quantidade||0)*parseFloat(i.preco_unitario||0);
   $('modal-title').textContent=titulo;
-  $('modal-body').innerHTML=(data||[]).length?`<table style="width:100%;font-size:13px"><thead><tr style="background:var(--cream)"><th style="padding:8px">Produto</th><th style="padding:8px">Qtd</th><th style="padding:8px">Preço Unit.</th><th style="padding:8px">Subtotal</th></tr></thead><tbody>${data.map(i=>`<tr><td style="padding:8px">${i.produtos?.nome||'—'}</td><td style="padding:8px">${i.quantidade}</td><td style="padding:8px">${fmt(i.preco_unitario)}</td><td style="padding:8px"><strong>${fmt(i.subtotal)}</strong></td></tr>`).join('')}</tbody></table>`:'<div class="empty"><span class="icon">📋</span><h4>Nenhum item</h4><p style="font-size:12px;color:var(--muted)">Verifique RLS nas tabelas *_itens.</p></div>';
+  $('modal-body').innerHTML=(data||[]).length
+    ?`<table style="width:100%;font-size:13px">
+        <thead><tr style="background:var(--cream)">
+          <th style="padding:8px">Produto</th>
+          <th style="padding:8px;text-align:center">Qtd</th>
+          <th style="padding:8px;text-align:right">Preço Unit.</th>
+          <th style="padding:8px;text-align:right">Subtotal</th>
+        </tr></thead>
+        <tbody>${data.map(i=>`<tr>
+          <td style="padding:8px">${i.produtos?.nome||'—'}${i.produtos?.codigo?'<br/><small style="color:var(--muted)">#'+i.produtos.codigo+'</small>':''}</td>
+          <td style="padding:8px;text-align:center">${i.quantidade}</td>
+          <td style="padding:8px;text-align:right">${fmt(i.preco_unitario)}</td>
+          <td style="padding:8px;text-align:right"><strong>${fmt(calc(i))}</strong></td>
+        </tr>`).join('')}</tbody>
+        <tfoot><tr style="background:var(--cream)">
+          <td colspan="3" style="padding:8px;text-align:right;font-weight:600">Total</td>
+          <td style="padding:8px;text-align:right;font-weight:700;color:var(--rose)">${fmt(data.reduce((s,i)=>s+calc(i),0))}</td>
+        </tr></tfoot>
+      </table>`
+    :'<div class="empty"><span class="icon">📋</span><h4>Nenhum item</h4></div>';
   $('modal-save').style.display='none';$('modal').style.display='flex';
 }
 async function openCompraModal(){
