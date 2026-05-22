@@ -569,8 +569,8 @@ const pgAct={
   clientes:[{l:'📥 Importar',f:'openImport("clientes")'},{l:'+ Novo Cliente',f:'openCliente()',p:true}],
   fornecedores:[{l:'+ Novo Fornecedor',f:'openFornecedor()',p:true}],
   contasbancarias:[{l:'+ Nova Conta',f:'openContaBancaria()',p:true}],
-  vendas:[{l:'+ Nova Venda',f:'openVendaModal()',p:true}],
-  compras:[{l:'+ Nova Compra',f:'openCompraModal()',p:true}],
+  vendas:[{l:'🔄 Recalcular Status',f:'recalcTodosStatus("venda")'},{l:'+ Nova Venda',f:'openVendaModal()',p:true}],
+  compras:[{l:'🔄 Recalcular Status',f:'recalcTodosStatus("compra")'},{l:'+ Nova Compra',f:'openCompraModal()',p:true}],
   financeiro:[{l:'+ Novo Lançamento',f:'openLancamento()',p:true}],
 };
 function go(pg){
@@ -834,7 +834,7 @@ async function saveCompra(){
   const{data:compra,error}=await sb.from('compras').insert(cObj).select().single();
   if(error){toast('Erro compra: '+error.message,'error');return}
   // Itens
-  for(const it of cItens){const{error:ie}=await sb.from('compras_itens').insert(wt({compra_id:compra.id,produto_id:it.produto_id,quantidade:it.quantidade,preco_unitario:it.preco_unitario,subtotal:it.quantidade*it.preco_unitario}));if(ie)console.error('item err:',ie)}
+  for(const it of cItens){const{error:ie}=await sb.from('compras_itens').insert(wt({compra_id:compra.id,produto_id:it.produto_id,quantidade:it.quantidade,preco_unitario:it.preco_unitario}));if(ie)console.error('item compra err:',ie)}
   // Estoque
   for(const it of cItens){
     const{data:pr}=await sb.from('produtos').select('estoque_atual').eq('id',it.produto_id).single();
@@ -935,7 +935,7 @@ async function saveVenda(){
   const num=(last?.[0]?.numero||0)+1;
   const{data:venda,error}=await sb.from('vendas').insert(wt({numero:num,cliente_id:cli,data_venda:dataV,forma_pagamento:pagto,valor_total:total,observacoes:obs,status:'finalizada'})).select().single();
   if(error){toast('Erro: '+error.message,'error');return}
-  for(const it of vItens){await sb.from('vendas_itens').insert(wt({venda_id:venda.id,produto_id:it.produto_id,quantidade:it.quantidade,preco_unitario:it.preco_unitario,subtotal:it.quantidade*it.preco_unitario}))}
+  for(const it of vItens){const{error:ie}=await sb.from('vendas_itens').insert(wt({venda_id:venda.id,produto_id:it.produto_id,quantidade:it.quantidade,preco_unitario:it.preco_unitario}));if(ie)console.error('item venda err:',ie)}
   for(const it of vItens){
     const{data:pr}=await sb.from('produtos').select('estoque_atual').eq('id',it.produto_id).single();
     const ea=parseFloat(pr?.estoque_atual||0),en=Math.max(0,ea-it.quantidade);
@@ -1065,43 +1065,59 @@ async function confirmarBaixa(){
   if(!bxContaId){toast('Selecione conta','warn');return}
   const dp=$('bx-data').value;
 
-  // 1. Baixar o lançamento
-  const{error}=await sb.from('lancamentos').update({status:'pago',data_pagamento:dp}).eq('id',bxId);
-  if(error){toast(error.message,'error');return}
+  // 1. Buscar lançamento ANTES de atualizar
+  const{data:lancAntes,error:le0}=await sb.from('lancamentos').select('tipo,valor,referencia_id,referencia_tipo').eq('id',bxId).single();
+  if(le0){toast('Erro ao buscar lançamento: '+le0.message,'error');return}
+  const refId=lancAntes?.referencia_id||bxRefId||null;
+  const refTipo=lancAntes?.referencia_tipo||bxRefTipo||null;
 
-  // 2. Atualizar saldo da conta bancária
-  const{data:lanc}=await sb.from('lancamentos').select('tipo,valor,referencia_id,referencia_tipo').eq('id',bxId).single();
+  // 2. Baixar o lançamento
+  const{error}=await sb.from('lancamentos').update({status:'pago',data_pagamento:dp}).eq('id',bxId);
+  if(error){toast('Erro baixa: '+error.message,'error');return}
+
+  // 3. Atualizar saldo da conta bancária
   const{data:conta}=await sb.from('contas_bancarias').select('saldo_atual').eq('id',bxContaId).single();
-  if(lanc&&conta){
-    const delta=lanc.tipo==='receber'?parseFloat(lanc.valor):-parseFloat(lanc.valor);
+  if(lancAntes&&conta){
+    const delta=lancAntes.tipo==='receber'?parseFloat(lancAntes.valor):-parseFloat(lancAntes.valor);
     await sb.from('contas_bancarias').update({saldo_atual:parseFloat(conta.saldo_atual||0)+delta}).eq('id',bxContaId);
   }
 
-  // 3. Verificar se TODAS as parcelas da venda/compra foram pagas → atualizar status
-  const refId=lanc?.referencia_id||bxRefId;
-  const refTipo=lanc?.referencia_tipo||bxRefTipo;
+  // 4. Atualizar status da venda/compra
   if(refId&&refTipo){
-    const{data:todasParc}=await sb.from('lancamentos').select('status').eq('referencia_id',refId).eq('referencia_tipo',refTipo);
-    const total=todasParc?.length||0;
-    const pagas=todasParc?.filter(p=>p.status==='pago').length||0;
-    const todasPagas=total>0&&pagas>=total;
-
-    if(refTipo==='venda'){
-      await sb.from('vendas').update({status:todasPagas?'pago':'pendente'}).eq('id',refId);
-    } else if(refTipo==='compra'){
-      await sb.from('compras').update({status:todasPagas?'pago':'pendente'}).eq('id',refId);
-    }
-
-    const msg=todasPagas
-      ?`Baixa realizada! ✅ ${refTipo==='venda'?'Venda':'Compra'} totalmente quitada.`
-      :`Baixa realizada! (${pagas}/${total} parcelas pagas)`;
-    toast(msg,'success');
+    await recalcStatus(refId,refTipo,bxId);
   } else {
     toast('Baixa realizada!','success');
   }
 
   $('baixa-modal').style.display='none';
   go(curPage);
+}
+
+// Recalcula e atualiza o status da venda ou compra baseado nos lançamentos reais
+async function recalcStatus(refId,refTipo,idRecemBaixado){
+  const{data:todasParc}=await sb.from('lancamentos')
+    .select('id,status')
+    .eq('referencia_id',refId)
+    .eq('referencia_tipo',refTipo);
+
+  const total=todasParc?.length||0;
+  // Considera o lançamento recém-baixado como pago mesmo se o banco ainda não refletiu
+  const pagas=(todasParc||[]).filter(p=>p.status==='pago'||p.id===idRecemBaixado).length;
+  const todasPagas=total>0&&pagas>=total;
+
+  const tabela=refTipo==='venda'?'vendas':'compras';
+  const novoStatus=todasPagas?'pago':'pendente';
+  const{error:ue}=await sb.from(tabela).update({status:novoStatus}).eq('id',refId);
+  if(ue){
+    console.error('Erro update status:',ue);
+    toast('⚠️ Status da '+tabela+' não atualizou: '+ue.message,'warn');
+  }
+
+  const msg=todasPagas
+    ?`✅ ${refTipo==='venda'?'Venda':'Compra'} totalmente quitada! (${pagas}/${total})`
+    :`Baixa realizada! (${pagas}/${total} parcelas pagas)`;
+  toast(msg,'success');
+  return todasPagas;
 }
 
 // ═══════════ FLUXO DE CAIXA (extrato com saldo acumulado) ═══════════
@@ -1165,6 +1181,38 @@ async function loadFluxo(){
       <td style="text-align:right;font-weight:700;color:${saldoShow>=0?'var(--success)':'var(--danger)'}">${fmt(saldoShow)}${!pago?'<small style="color:var(--muted);font-weight:400"> proj</small>':''}</td>
     </tr>`
   }).join(''):emptyR(7,'Sem lançamentos no período');
+}
+
+// ═══════════ RECALCULAR STATUS EM LOTE ═══════════
+async function recalcTodosStatus(tipo){
+  toast('Recalculando status...','success');
+  const tabela=tipo==='venda'?'vendas':'compras';
+  const lancTipo=tipo==='venda'?'receber':'pagar';
+  // Buscar todos os registros
+  const{data:registros}=await sb.from(tabela).select('id,status');
+  // Buscar todos os lançamentos do tipo
+  const{data:lancs}=await sb.from('lancamentos').select('id,status,referencia_id,referencia_tipo').eq('referencia_tipo',tipo).eq('tipo',lancTipo);
+  if(!registros?.length){toast('Nenhum registro encontrado','warn');return}
+  // Agrupar lançamentos por referencia_id
+  const lancMap={};
+  (lancs||[]).forEach(l=>{
+    if(!lancMap[l.referencia_id]) lancMap[l.referencia_id]={total:0,pago:0};
+    lancMap[l.referencia_id].total++;
+    if(l.status==='pago') lancMap[l.referencia_id].pago++;
+  });
+  let atualizados=0;
+  for(const reg of registros){
+    const st=lancMap[reg.id];
+    let novoStatus;
+    if(!st) novoStatus='pendente'; // sem lançamentos = à vista pendente
+    else novoStatus=st.pago>=st.total?'pago':'pendente';
+    if(novoStatus!==reg.status){
+      await sb.from(tabela).update({status:novoStatus}).eq('id',reg.id);
+      atualizados++;
+    }
+  }
+  toast(`✅ ${atualizados} ${tabela} atualizadas!`,'success');
+  go(curPage);
 }
 
 // ═══════════ PLANOS ═══════════
