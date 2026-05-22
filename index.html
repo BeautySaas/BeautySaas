@@ -181,6 +181,16 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:14px 0}
 .dre-row.lucro{font-weight:700;font-size:15px;color:var(--success)}
 .dre-row.prejuizo{font-weight:700;font-size:15px;color:var(--danger)}
 @media print{.sidebar,.topbar,.rel-filtros,button{display:none!important}.page{display:block!important}}
+/* ── ONBOARDING ── */
+.ob-dot{width:8px;height:8px;border-radius:50%;background:var(--border);transition:all .3s}
+.ob-dot.active{background:var(--rose);width:24px;border-radius:4px}
+.check-item{display:flex;align-items:center;gap:8px;padding:7px 6px;border-radius:6px;cursor:pointer;font-size:13px;transition:background .15s}
+.check-item:hover{background:var(--cream)}
+.check-item.done{color:var(--muted);text-decoration:line-through}
+.check-item.done .chk-icon{color:var(--success)}
+.chk-icon{font-size:16px;min-width:18px}
+.mp-btn{display:flex;align-items:center;justify-content:center;gap:10px;background:#009ee3;color:#fff;border:none;border-radius:8px;padding:13px 20px;font-size:15px;font-weight:600;cursor:pointer;width:100%;font-family:inherit;transition:all .2s}
+.mp-btn:hover{background:#0081c0;transform:translateY(-1px)}
 </style>
 </head>
 <body>
@@ -242,7 +252,7 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:14px 0}
       <a class="nav-item" onclick="go('devolucoes')"><span class="icon">↩</span>Devoluções</a>
       <a class="nav-item" onclick="go('cupons')"><span class="icon">🏷</span>Cupons</a>
       <a class="nav-item" onclick="go('compras')"><span class="icon">◇</span>Compras</a>
-      <a class="nav-item" onclick="go('estoque')"><span class="icon">▣</span>Estoque</a>
+      <a class="nav-item" onclick="go('estoque')"><span class="icon">▣</span>Estoque <span id="nav-estoque-badge" style="display:none;background:var(--danger);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:4px;font-weight:700">0</span></a>
       <div class="nav-section">Financeiro</div>
       <a class="nav-item" onclick="go('financeiro')"><span class="icon">◈</span>Contas Pagar/Rec.</a>
       <a class="nav-item" onclick="go('fluxo')"><span class="icon">◎</span>Fluxo de Caixa</a>
@@ -263,6 +273,7 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:14px 0}
       <!-- Dashboard -->
       <div class="page active" id="pg-dashboard">
         <div id="trial-banner-wrap"></div>
+        <div id="estoque-alerta-wrap"></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:flex-end">
           <div class="form-group"><label>Período</label><input type="date" id="d-ini" onchange="loadDashboard()" style="padding:5px 8px;font-size:12px"/></div>
           <div class="form-group"><label>Até</label><input type="date" id="d-fim" onchange="loadDashboard()" style="padding:5px 8px;font-size:12px"/></div>
@@ -348,7 +359,7 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:14px 0}
           <div class="kpi gold"><div class="kpi-label">Estoque Baixo</div><div class="kpi-value" id="ek-baixo">—</div></div>
           <div class="kpi success"><div class="kpi-label">Valor em Estoque</div><div class="kpi-value" id="ek-valor">R$ —</div></div>
         </div>
-        <div class="card"><div class="table-wrap"><table id="tbl-estoque"><thead><tr><th>Produto</th><th>Marca</th><th style="text-align:center;color:var(--success)">📥 Entradas</th><th style="text-align:center;color:var(--danger)">📤 Saídas</th><th style="text-align:center;font-weight:700">Saldo</th><th>Mínimo</th><th>Valor Estoque</th><th>Situação</th></tr></thead><tbody id="tb-estoque"></tbody></table></div></div>
+        <div class="card"><div class="table-wrap"><table id="tbl-estoque"><thead><tr><th>Produto</th><th>Marca</th><th style="text-align:center;color:var(--success)">📥 Entradas</th><th style="text-align:center;color:var(--danger)">📤 Saídas</th><th style="text-align:center;font-weight:700">Saldo</th><th>Mínimo</th><th>Valor Estoque</th><th>Situação</th><th>Ação</th></tr></thead><tbody id="tb-estoque"></tbody></table></div></div>
       </div>
 
       <!-- Financeiro -->
@@ -559,16 +570,93 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:14px 0}
           <h2 style="font-family:'Cormorant Garamond',serif;font-size:26px;margin-bottom:4px">Escolha seu Plano</h2>
           <p style="color:var(--muted);font-size:14px">14 dias grátis. Cancele quando quiser.</p>
         </div>
-        <div class="planos-grid">
-          <div class="plano-card"><div class="plano-nome">Basic</div><div class="plano-valor">R$ 29<span>/mês</span></div><ul class="plano-features"><li>200 produtos</li><li>100 clientes</li><li>Vendas e compras</li><li>Relatórios básicos</li></ul><button class="btn btn-secondary" style="width:100%" onclick="assinarPlano('basic')">Assinar</button></div>
-          <div class="plano-card destaque"><div class="tag">⭐ Popular</div><div class="plano-nome">Pro</div><div class="plano-valor">R$ 59<span>/mês</span></div><ul class="plano-features"><li>Produtos ilimitados</li><li>Clientes ilimitados</li><li>Importação Excel</li><li>Fluxo de caixa avançado</li><li>Metas e gamificação</li></ul><button class="btn btn-primary" style="width:100%" onclick="assinarPlano('pro')">Assinar</button></div>
-          <div class="plano-card"><div class="plano-nome">Premium</div><div class="plano-valor">R$ 99<span>/mês</span></div><ul class="plano-features"><li>Tudo do Pro</li><li>Multi-usuária</li><li>Catálogo público</li><li>WhatsApp integrado</li></ul><button class="btn btn-gold" style="width:100%" onclick="assinarPlano('premium')">Assinar</button></div>
+        <div id="plano-atual-info" style="display:none;background:var(--cream);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between">
+          <div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Plano atual</div><div id="plano-atual-nome" style="font-size:18px;font-weight:700;margin-top:2px"></div></div>
+          <div id="plano-atual-status" style="font-size:13px;color:var(--muted)"></div>
         </div>
-        <div id="plano-info" style="margin-top:20px;text-align:center;color:var(--muted);font-size:13px"></div>
+        <div class="planos-grid">
+          <div class="plano-card">
+            <div class="plano-nome">Basic</div>
+            <div class="plano-valor">R$ 29<span>/mês</span></div>
+            <ul class="plano-features"><li>200 produtos</li><li>100 clientes</li><li>Vendas e compras</li><li>Relatórios básicos</li></ul>
+            <button class="mp-btn" onclick="assinarPlano('basic',2900)">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+              Assinar com Mercado Pago
+            </button>
+          </div>
+          <div class="plano-card destaque">
+            <div class="tag">⭐ Popular</div>
+            <div class="plano-nome">Pro</div>
+            <div class="plano-valor">R$ 59<span>/mês</span></div>
+            <ul class="plano-features"><li>Produtos ilimitados</li><li>Clientes ilimitados</li><li>Importação Excel</li><li>Fluxo de caixa avançado</li><li>Orçamentos com link</li></ul>
+            <button class="mp-btn" onclick="assinarPlano('pro',5900)">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+              Assinar com Mercado Pago
+            </button>
+          </div>
+          <div class="plano-card">
+            <div class="plano-nome">Premium</div>
+            <div class="plano-valor">R$ 99<span>/mês</span></div>
+            <ul class="plano-features"><li>Tudo do Pro</li><li>Multi-usuária</li><li>Catálogo público</li><li>Suporte prioritário</li></ul>
+            <button class="mp-btn" onclick="assinarPlano('premium',9900)">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+              Assinar com Mercado Pago
+            </button>
+          </div>
+        </div>
+        <div style="margin-top:20px;background:var(--cream);border-radius:10px;padding:16px;font-size:13px;color:var(--muted);text-align:center">
+          🔒 Pagamento 100% seguro via Mercado Pago · Cancele a qualquer momento · Sem fidelidade
+        </div>
+        <div id="plano-info" style="margin-top:12px;text-align:center;color:var(--muted);font-size:13px"></div>
       </div>
     </div>
   </div>
 </div>
+<!-- MODAL ONBOARDING -->
+<div id="onboarding-modal" class="modal-overlay" style="display:none;z-index:9999">
+  <div class="modal" style="max-width:560px;text-align:center">
+    <div style="padding:32px 28px">
+      <div id="ob-step-indicator" style="display:flex;justify-content:center;gap:6px;margin-bottom:24px"></div>
+      <div id="ob-icon" style="font-size:48px;margin-bottom:12px"></div>
+      <h2 id="ob-titulo" style="font-family:'Cormorant Garamond',serif;font-size:26px;margin-bottom:8px"></h2>
+      <p id="ob-desc" style="color:var(--muted);font-size:14px;line-height:1.6;margin-bottom:24px"></p>
+      <div id="ob-action" style="margin-bottom:16px"></div>
+      <div style="display:flex;gap:10px;justify-content:center">
+        <button id="ob-pular" class="btn btn-secondary" onclick="pularOnboarding()">Pular tutorial</button>
+        <button id="ob-proximo" class="btn btn-primary" onclick="obProximo()">Próximo →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CHECKLIST FLUTUANTE -->
+<div id="checklist-float" style="display:none;position:fixed;bottom:20px;right:20px;z-index:8000;width:260px">
+  <div style="background:#fff;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.15);overflow:hidden">
+    <div style="background:linear-gradient(135deg,var(--rose),#c8956c);color:#fff;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="toggleChecklist()">
+      <span style="font-size:13px;font-weight:600">🚀 Primeiros passos</span>
+      <span id="checklist-progress" style="font-size:12px;background:rgba(255,255,255,.2);padding:2px 8px;border-radius:10px">0/5</span>
+    </div>
+    <div id="checklist-body" style="padding:10px">
+      <div class="check-item" id="chk-marca" onclick="go('marcas')">
+        <span class="chk-icon">◻</span><span>Cadastrar uma marca</span>
+      </div>
+      <div class="check-item" id="chk-produto" onclick="go('produtos')">
+        <span class="chk-icon">◻</span><span>Cadastrar um produto</span>
+      </div>
+      <div class="check-item" id="chk-cliente" onclick="go('clientes')">
+        <span class="chk-icon">◻</span><span>Cadastrar um cliente</span>
+      </div>
+      <div class="check-item" id="chk-venda" onclick="go('vendas')">
+        <span class="chk-icon">◻</span><span>Fazer uma venda</span>
+      </div>
+      <div class="check-item" id="chk-conta" onclick="go('contasbancarias')">
+        <span class="chk-icon">◻</span><span>Adicionar conta bancária</span>
+      </div>
+      <button class="btn btn-secondary" style="width:100%;margin-top:8px;font-size:12px" onclick="dispensarChecklist()">Dispensar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL GENÉRICO -->
 <div id="modal" class="modal-overlay" style="display:none">
   <div class="modal modal-wide">
@@ -690,6 +778,41 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:14px 0}
   </div>
 </div>
 
+<!-- MODAL AJUSTE ESTOQUE -->
+<div id="ajuste-modal" class="modal-overlay" style="display:none">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header"><h3>Ajuste de Estoque</h3><button class="close-btn" onclick="$('ajuste-modal').style.display='none'">✕</button></div>
+    <div class="modal-body">
+      <div id="ajuste-prod-info" style="background:var(--cream);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px"></div>
+      <div class="form-grid">
+        <div class="form-row">
+          <div class="form-group"><label>Tipo de Ajuste</label>
+            <select id="ajuste-tipo" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px">
+              <option value="inventario">📋 Inventário (corrigir quantidade)</option>
+              <option value="entrada">📥 Entrada (acréscimo)</option>
+              <option value="saida">📤 Saída (decréscimo)</option>
+              <option value="perda">⚠️ Perda / Avaria</option>
+              <option value="brinde">🎁 Brinde / Amostra</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label id="ajuste-qtd-label">Nova Quantidade</label><input id="ajuste-qtd" type="number" step="0.01" min="0" style="font-size:16px;font-weight:600"/></div>
+          <div class="form-group"><label>Estoque Atual</label><div id="ajuste-est-atual" style="padding:8px;font-size:18px;font-weight:700;color:var(--rose)">—</div></div>
+        </div>
+        <div class="form-group"><label>Observação</label><textarea id="ajuste-obs" rows="2" placeholder="Ex: Contagem física do dia, produto danificado..."></textarea></div>
+        <div id="ajuste-preview" style="background:var(--cream);border-radius:6px;padding:10px;font-size:13px;display:none">
+          <strong>Resultado:</strong> <span id="ajuste-preview-txt"></span>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="$('ajuste-modal').style.display='none'">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarAjuste()">✓ Confirmar Ajuste</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL VISUALIZAR ORÇAMENTO -->
 <div id="orv-modal" class="modal-overlay" style="display:none">
   <div class="modal modal-wide" style="max-width:700px">
@@ -777,7 +900,17 @@ async function afterLogin(u){
   const t=p.tenants;$('tenant-name').textContent=t?.nome||'Meu Negócio';
   const pl=t?.plano||'trial';const b=$('tenant-plano-badge');b.textContent=pl.charAt(0).toUpperCase()+pl.slice(1);b.className='tenant-plano plano-'+pl;
   $('tenant-avatar').textContent=(t?.nome||'B').charAt(0).toUpperCase();
-  _busy=false;showApp();go('dashboard');
+  _busy=false;showApp();go('dashboard');verificarAlertasEstoque();
+  // Onboarding e checklist
+  setTimeout(()=>{
+    iniciarOnboarding();
+    if(!localStorage.getItem('ob_done_'+tid)===false&&!localStorage.getItem('checklist_done_'+tid)){
+      atualizarChecklist();
+    }
+    if(localStorage.getItem('ob_done_'+tid)&&!localStorage.getItem('checklist_done_'+tid)){
+      mostrarChecklist();
+    }
+  },800);
 }
 function showApp(){$('auth-screen').style.display='none';$('app').classList.add('visible')}
 function showAuth(){$('auth-screen').style.display='flex';$('app').classList.remove('visible');tid=null}
@@ -1160,7 +1293,7 @@ async function saveCompra(){
     if(le){console.error('lanc err:',le);toast('Erro lançamento: '+le.message,'error')}else lok++;
   }
   toast(`Compra #${num}: ${cItens.length} item(ns), estoque ↑, ${lok} parcela(s)`,'success');
-  $('compra-modal').style.display='none';loadCompras();
+  $('compra-modal').style.display='none';verificarAlertasEstoque();loadCompras();
 }
 
 // ═══════════ VENDAS ═══════════
@@ -1272,7 +1405,8 @@ async function saveVenda(){
     await sb.from('cupons').update({usos_atual:(_cupomAtivo.usos_atual||0)+1}).eq('id',_cupomAtivo.id);
     _cupomAtivo=null;
   }
-  toast(`Venda #${num} registrada!`,'success');$('venda-modal').style.display='none';loadVendas();
+  toast(`Venda #${num} registrada!`,'success');$('venda-modal').style.display='none';
+  verificarAlertasEstoque();loadVendas();
 }
 
 // ═══════════ ESTOQUE ═══════════
@@ -1295,7 +1429,17 @@ async function loadEstoque(){
   $('tb-estoque').innerHTML=prods.length?prods.map(p=>{
     const saldo=parseFloat(p.estoque_atual||0),min=parseFloat(p.estoque_minimo||0),ent=entMap[p.id]||0,sai=saiMap[p.id]||0;
     const sit=saldo<=0?'<span class="badge badge-danger">Zerado</span>':saldo<=min?'<span class="badge badge-warn">Baixo</span>':'<span class="badge badge-success">OK</span>';
-    return`<tr><td><strong>${p.nome}</strong>${p.codigo?'<br/><small style="color:var(--muted)">#'+p.codigo+'</small>':''}</td><td>${p.marcas?.nome||'—'}</td><td style="text-align:center;color:var(--success);font-weight:600">${ent>0?'+'+ent:'0'}</td><td style="text-align:center;color:var(--danger);font-weight:600">${sai>0?'-'+sai:'0'}</td><td style="text-align:center;font-weight:700;font-size:15px">${saldo}</td><td>${min}</td><td>${fmt(saldo*parseFloat(p.preco_custo||0))}</td><td>${sit}</td></tr>`}).join(''):emptyR(8,'Nenhum produto');
+    return`<tr>
+      <td><strong>${p.nome}</strong>${p.codigo?'<br/><small style="color:var(--muted)">#'+p.codigo+'</small>':''}</td>
+      <td>${p.marcas?.nome||'—'}</td>
+      <td style="text-align:center;color:var(--success);font-weight:600">${ent>0?'+'+ent:'0'}</td>
+      <td style="text-align:center;color:var(--danger);font-weight:600">${sai>0?'-'+sai:'0'}</td>
+      <td style="text-align:center;font-weight:700;font-size:15px">${saldo}</td>
+      <td>${min}</td>
+      <td>${fmt(saldo*parseFloat(p.preco_custo||0))}</td>
+      <td>${sit}</td>
+      <td><button class="btn btn-sm btn-secondary" onclick="openAjusteEstoque('${p.id}','${p.nome.replace(/'/g,"\\'")}',${saldo})">⚖️ Ajustar</button></td>
+    </tr>`}).join(''):emptyR(9,'Nenhum produto');
 }
 
 // ═══════════ FINANCEIRO ═══════════
@@ -1364,11 +1508,48 @@ async function loadFin(tipo){
 function filtFin(){loadFin(finTipo)}
 function openLancamento(){
   $('modal-title').textContent='Novo Lançamento';
-  $('modal-body').innerHTML=`<div class="form-grid"><div class="form-row"><div class="form-group"><label>Tipo *</label><select id="f-tipo"><option value="pagar">A Pagar</option><option value="receber">A Receber</option></select></div><div class="form-group"><label>Categoria</label><select id="f-cat"><option value="compra">Compra</option><option value="venda">Venda</option><option value="fixa">Despesa Fixa</option><option value="variavel">Variável</option><option value="outro">Outro</option></select></div></div><div class="form-group"><label>Descrição *</label><input id="f-desc"/></div><div class="form-row"><div class="form-group"><label>Valor R$ *</label><input id="f-valor" type="number" step="0.01"/></div><div class="form-group"><label>Vencimento *</label><input id="f-venc" type="date"/></div></div><div class="form-group"><label>Nº NF / Doc</label><input id="f-ndoc"/></div></div>`;
+  // Categorias: lista padrão + opção Outra
+  const cats=JSON.parse(localStorage.getItem('cats_despesa')||'["Compra","Venda","Alimentação","Transporte","Marketing","Aluguel","Salário","Embalagem","Impostos","Outro"]');
+  const catOpts=cats.map(c=>`<option value="${c.toLowerCase()}">${c}</option>`).join('');
+  $('modal-body').innerHTML=`<div class="form-grid">
+    <div class="form-row">
+      <div class="form-group"><label>Tipo *</label><select id="f-tipo"><option value="pagar">A Pagar</option><option value="receber">A Receber</option></select></div>
+      <div class="form-group"><label>Categoria</label>
+        <select id="f-cat" onchange="toggleCatOutra(this)">
+          ${catOpts}
+          <option value="__outra__">+ Nova categoria...</option>
+        </select>
+      </div>
+      <div class="form-group" id="f-cat-outra-wrap" style="display:none"><label>Nova Categoria</label><input id="f-cat-outra" placeholder="Digite o nome..."/></div>
+    </div>
+    <div class="form-group"><label>Descrição *</label><input id="f-desc"/></div>
+    <div class="form-row">
+      <div class="form-group"><label>Valor R$ *</label><input id="f-valor" type="number" step="0.01"/></div>
+      <div class="form-group"><label>Vencimento *</label><input id="f-venc" type="date"/></div>
+    </div>
+    <div class="form-group"><label>Nº NF / Doc</label><input id="f-ndoc"/></div>
+  </div>`;
   $('modal-save').style.display='';
-  modalCb=async()=>{const d=$('f-desc').value.trim(),v=parseFloat($('f-valor').value),vc=$('f-venc').value;if(!d||!v||!vc){toast('Preencha obrigatórios','error');return false}const nd=$('f-ndoc').value.trim();const{error}=await sb.from('lancamentos').insert(wt({tipo:$('f-tipo').value,descricao:d,categoria:$('f-cat').value,valor:v,data_vencimento:vc,status:'pendente',observacoes:nd?'NF: '+nd:null}));if(error){toast(error.message,'error');return false}toast('Lançamento salvo!');loadFin(finTipo)};
+  modalCb=async()=>{
+    const d=$('f-desc').value.trim(),v=parseFloat($('f-valor').value),vc=$('f-venc').value;
+    if(!d||!v||!vc){toast('Preencha obrigatórios','error');return false}
+    let cat=$('f-cat').value;
+    if(cat==='__outra__'){
+      const nova=$('f-cat-outra').value.trim();
+      if(!nova){toast('Digite a nova categoria','error');return false}
+      cat=nova.toLowerCase();
+      // Salvar nova categoria
+      const cats2=JSON.parse(localStorage.getItem('cats_despesa')||'[]');
+      if(!cats2.map(c=>c.toLowerCase()).includes(cat)){cats2.push(nova);localStorage.setItem('cats_despesa',JSON.stringify(cats2))}
+    }
+    const nd=$('f-ndoc').value.trim();
+    const{error}=await sb.from('lancamentos').insert(wt({tipo:$('f-tipo').value,descricao:d,categoria:cat,valor:v,data_vencimento:vc,status:'pendente',observacoes:nd?'NF: '+nd:null}));
+    if(error){toast(error.message,'error');return false}
+    toast('Lançamento salvo!');loadFin(finTipo);
+  };
   $('modal').style.display='flex';
 }
+function toggleCatOutra(sel){$('f-cat-outra-wrap').style.display=sel.value==='__outra__'?'':'none'}
 
 // ═══════════ BAIXA ═══════════
 async function openBaixa(id,desc,valor,tipo,refId,refTipo){
@@ -1942,6 +2123,100 @@ function copiarLink(orcId){
   navigator.clipboard.writeText(link).then(()=>toast('Link copiado! 🔗','success'));
 }
 
+// ═══════════ ALERTAS DE ESTOQUE ═══════════
+async function verificarAlertasEstoque(){
+  const{data}=await sb.from('produtos').select('id,nome,estoque_atual,estoque_minimo').eq('ativo',true);
+  const prods=data||[];
+  const zerados=prods.filter(p=>parseFloat(p.estoque_atual||0)<=0);
+  const baixos=prods.filter(p=>{const a=parseFloat(p.estoque_atual||0);const m=parseFloat(p.estoque_minimo||0);return a>0&&m>0&&a<=m});
+  const total=zerados.length+baixos.length;
+
+  // Badge no menu
+  const badge=$('nav-estoque-badge');
+  if(total>0){badge.textContent=total;badge.style.display='inline'}
+  else badge.style.display='none';
+
+  // Banner no dashboard
+  const wrap=$('estoque-alerta-wrap');
+  if(!wrap)return;
+  if(total===0){wrap.innerHTML='';return}
+  const itensZero=zerados.slice(0,3).map(p=>`<strong>${p.nome}</strong>`).join(', ');
+  const itensBaixo=baixos.slice(0,3).map(p=>`<strong>${p.nome}</strong> (${p.estoque_atual})`).join(', ');
+  wrap.innerHTML=`<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+    <div>
+      <div style="font-weight:600;font-size:13px;margin-bottom:4px">⚠️ Alerta de Estoque (${total} produto${total>1?'s':''})</div>
+      ${zerados.length?`<div style="font-size:12px;color:#c0392b">🔴 Zerados: ${itensZero}${zerados.length>3?' e mais '+(zerados.length-3):''}.</div>`:''}
+      ${baixos.length?`<div style="font-size:12px;color:#e67e22">🟡 Baixo: ${itensBaixo}${baixos.length>3?' e mais '+(baixos.length-3):''}.</div>`:''}
+    </div>
+    <button class="btn btn-sm btn-secondary" onclick="go('estoque');$('ef-sit').value='zerado';loadEstoque()" style="white-space:nowrap">Ver Estoque</button>
+  </div>`;
+}
+
+// ═══════════ AJUSTE MANUAL DE ESTOQUE ═══════════
+let _ajusteProdId=null,_ajusteEstAtual=0;
+
+function openAjusteEstoque(prodId,prodNome,estAtual){
+  _ajusteProdId=prodId;_ajusteEstAtual=parseFloat(estAtual||0);
+  $('ajuste-prod-info').innerHTML=`<strong>${prodNome}</strong> · Estoque atual: <strong style="color:var(--rose)">${estAtual}</strong>`;
+  $('ajuste-est-atual').textContent=estAtual;
+  $('ajuste-qtd').value=estAtual;
+  $('ajuste-obs').value='';
+  $('ajuste-tipo').value='inventario';
+  $('ajuste-qtd-label').textContent='Nova Quantidade Total';
+  $('ajuste-preview').style.display='none';
+  // Update label on tipo change
+  $('ajuste-tipo').onchange=()=>{
+    const t=$('ajuste-tipo').value;
+    $('ajuste-qtd-label').textContent=t==='inventario'?'Nova Quantidade Total':'Quantidade a '+(t==='entrada'?'Adicionar':'Remover/Registrar');
+    if(t==='inventario')$('ajuste-qtd').value=_ajusteEstAtual;
+    else $('ajuste-qtd').value='';
+    atualizarPreviewAjuste();
+  };
+  $('ajuste-qtd').oninput=atualizarPreviewAjuste;
+  $('ajuste-modal').style.display='flex';
+}
+
+function atualizarPreviewAjuste(){
+  const tipo=$('ajuste-tipo').value;
+  const qtd=parseFloat($('ajuste-qtd').value)||0;
+  let novoEst=_ajusteEstAtual;
+  if(tipo==='inventario') novoEst=qtd;
+  else if(tipo==='entrada') novoEst=_ajusteEstAtual+qtd;
+  else novoEst=Math.max(0,_ajusteEstAtual-qtd);
+  const diff=novoEst-_ajusteEstAtual;
+  const cor=diff>0?'var(--success)':diff<0?'var(--danger)':'var(--muted)';
+  $('ajuste-preview').style.display='';
+  $('ajuste-preview-txt').innerHTML=`Estoque: ${_ajusteEstAtual} → <strong style="color:${cor}">${novoEst}</strong> ${diff!==0?`(${diff>0?'+':''}${diff.toFixed(2)})`:'(sem alteração)'}`;
+}
+
+async function confirmarAjuste(){
+  if(!_ajusteProdId){toast('Erro','error');return}
+  const tipo=$('ajuste-tipo').value;
+  const qtd=parseFloat($('ajuste-qtd').value);
+  if(isNaN(qtd)||qtd<0){toast('Informe uma quantidade válida','error');return}
+  const obs=$('ajuste-obs').value||null;
+  let novoEst=_ajusteEstAtual,qtdMov=qtd,tipoMov='entrada';
+  if(tipo==='inventario'){novoEst=qtd;qtdMov=Math.abs(qtd-_ajusteEstAtual);tipoMov=qtd>=_ajusteEstAtual?'entrada':'saida'}
+  else if(tipo==='entrada'){novoEst=_ajusteEstAtual+qtd;tipoMov='entrada'}
+  else{novoEst=Math.max(0,_ajusteEstAtual-qtd);tipoMov='saida'}
+
+  const{error}=await sb.from('produtos').update({estoque_atual:novoEst}).eq('id',_ajusteProdId);
+  if(error){toast('Erro: '+error.message,'error');return}
+
+  if(qtdMov>0){
+    await sb.from('estoque_movimentacoes').insert(wt({
+      produto_id:_ajusteProdId,tipo:tipoMov,quantidade:qtdMov,
+      saldo_anterior:_ajusteEstAtual,saldo_posterior:novoEst,
+      referencia_tipo:'ajuste',
+      observacoes:`Ajuste manual (${tipo})${obs?': '+obs:''}`
+    }));
+  }
+  toast(`✅ Estoque ajustado: ${_ajusteEstAtual} → ${novoEst}`,'success');
+  $('ajuste-modal').style.display='none';
+  loadEstoque();
+  verificarAlertasEstoque();
+}
+
 // ═══════════ RELATÓRIOS — UTILS ═══════════
 const pgTitle_rel={'rel-vendas':'Relatório de Vendas','rel-dre':'DRE — Resultado','rel-clientes':'Relatório de Clientes','rel-estoque':'Movimentações de Estoque'};
 Object.assign(pgTitle,pgTitle_rel);
@@ -2123,6 +2398,145 @@ async function gerarRelEstoque(){
     <td style="font-size:11px;color:var(--muted)">${r.observacoes||'—'}</td>
   </tr>`).join(''):`<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted)">Nenhuma movimentação no período</td></tr>`;
   $('re-card').style.display='';
+}
+
+// ═══════════ ONBOARDING ═══════════
+const OB_STEPS=[
+  {icon:'✦',titulo:'Bem-vinda ao BeautySaaS!',desc:'Seu sistema de gestão para revendedoras de cosméticos. Vamos te guiar pelos primeiros passos para começar a vender em minutos.',action:''},
+  {icon:'🏷️',titulo:'Cadastre sua primeira marca',desc:'Comece pelas marcas que você revende — Avon, Natura, Boticário... Você pode cadastrar quantas quiser.',action:'<button class="btn btn-primary" onclick="pularOnboarding();openMarca()">Cadastrar Marca Agora</button>',check:'marca'},
+  {icon:'💄',titulo:'Adicione seus produtos',desc:'Agora cadastre os produtos com preço de custo e venda. O sistema calcula sua margem automaticamente.',action:'<button class="btn btn-primary" onclick="pularOnboarding();openProduto()">Cadastrar Produto</button>',check:'produto'},
+  {icon:'👩',titulo:'Cadastre suas clientes',desc:'Adicione as clientes com telefone e WhatsApp. Você poderá ver o histórico de compras de cada uma.',action:'<button class="btn btn-primary" onclick="pularOnboarding();openCliente()">Cadastrar Cliente</button>',check:'cliente'},
+  {icon:'💰',titulo:'Faça sua primeira venda!',desc:'Tudo pronto! Agora registre uma venda, gere um orçamento ou explore o sistema. O checklist flutuante vai te acompanhar.',action:'<button class="btn btn-primary" onclick="pularOnboarding();openVendaModal()">Registrar Venda</button>'},
+];
+let _obStep=0;
+
+async function iniciarOnboarding(){
+  // Verificar se já completou o onboarding
+  if(localStorage.getItem('ob_done_'+tid))return;
+  // Verificar se é nova (sem marcas)
+  const{data}=await sb.from('marcas').select('id').limit(1);
+  if(data?.length)return; // já tem dados, não mostrar
+  _obStep=0;renderObStep();
+  $('onboarding-modal').style.display='flex';
+}
+
+function renderObStep(){
+  const s=OB_STEPS[_obStep];
+  // Dots
+  $('ob-step-indicator').innerHTML=OB_STEPS.map((_,i)=>`<div class="ob-dot ${i===_obStep?'active':''}"></div>`).join('');
+  $('ob-icon').textContent=s.icon;
+  $('ob-titulo').textContent=s.titulo;
+  $('ob-desc').textContent=s.desc;
+  $('ob-action').innerHTML=s.action||'';
+  $('ob-proximo').textContent=_obStep===OB_STEPS.length-1?'Começar! 🚀':'Próximo →';
+}
+
+function obProximo(){
+  if(_obStep<OB_STEPS.length-1){_obStep++;renderObStep()}
+  else pularOnboarding();
+}
+
+function pularOnboarding(){
+  $('onboarding-modal').style.display='none';
+  localStorage.setItem('ob_done_'+tid,'1');
+  // Mostrar checklist
+  if(!localStorage.getItem('checklist_done_'+tid)) mostrarChecklist();
+}
+
+// ═══════════ CHECKLIST FLUTUANTE ═══════════
+async function mostrarChecklist(){
+  $('checklist-float').style.display='block';
+  await atualizarChecklist();
+}
+
+async function atualizarChecklist(){
+  if(!tid)return;
+  const[qM,qP,qC,qV,qCB]=await Promise.all([
+    sb.from('marcas').select('id').limit(1),
+    sb.from('produtos').select('id').limit(1),
+    sb.from('clientes').select('id').limit(1),
+    sb.from('vendas').select('id').limit(1),
+    sb.from('contas_bancarias').select('id').limit(1)
+  ]);
+  const checks={
+    'chk-marca':qM.data?.length>0,
+    'chk-produto':qP.data?.length>0,
+    'chk-cliente':qC.data?.length>0,
+    'chk-venda':qV.data?.length>0,
+    'chk-conta':qCB.data?.length>0
+  };
+  let done=0;
+  Object.entries(checks).forEach(([id,ok])=>{
+    const el=$(id);if(!el)return;
+    el.classList.toggle('done',ok);
+    el.querySelector('.chk-icon').textContent=ok?'✓':'◻';
+    if(ok)done++;
+  });
+  $('checklist-progress').textContent=`${done}/5`;
+  // Se tudo completo, dispensar automaticamente após 3s
+  if(done>=5){
+    setTimeout(()=>{dispensarChecklist();toast('🎉 Parabéns! Setup completo!','success')},2000);
+  }
+}
+
+function toggleChecklist(){
+  const body=$('checklist-body');
+  body.style.display=body.style.display==='none'?'block':'none';
+}
+
+function dispensarChecklist(){
+  $('checklist-float').style.display='none';
+  localStorage.setItem('checklist_done_'+tid,'1');
+}
+
+// ═══════════ MERCADO PAGO ═══════════
+// IMPORTANTE: Substitua pelos seus links de pagamento reais do Mercado Pago
+// Crie em: mercadopago.com.br → Seu negócio → Links de pagamento
+const MP_LINKS={
+  basic:'https://mpago.la/SEU_LINK_BASIC',    // ← Substitua
+  pro:'https://mpago.la/SEU_LINK_PRO',        // ← Substitua
+  premium:'https://mpago.la/SEU_LINK_PREMIUM' // ← Substitua
+};
+
+async function assinarPlano(plano,centavos){
+  const t=curProfile?.tenants;
+  const planoAtual=t?.plano||'trial';
+  if(planoAtual===plano){toast('Você já está neste plano!','warn');return}
+
+  // Verificar se tem link configurado
+  if(MP_LINKS[plano].includes('SEU_LINK')){
+    toast('Configure os links do Mercado Pago no código (MP_LINKS)','warn');
+    $('plano-info').innerHTML=`<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:12px;margin-top:12px;font-size:13px">
+      <strong>Como configurar:</strong><br/>
+      1. Acesse <a href="https://www.mercadopago.com.br" target="_blank">mercadopago.com.br</a><br/>
+      2. Vá em <strong>Seu negócio → Links de pagamento</strong><br/>
+      3. Crie um link para cada plano (Basic R$29, Pro R$59, Premium R$99) como assinatura mensal<br/>
+      4. Cole os links no código em <code>MP_LINKS</code> e faça o deploy
+    </div>`;
+    return;
+  }
+
+  // Salvar intenção no Supabase para rastrear
+  await sb.from('tenants').update({plano_pendente:plano}).eq('id',tid);
+  // Abrir link do Mercado Pago
+  window.open(MP_LINKS[plano]+'?external_reference='+tid,'_blank');
+  toast('Redirecionando para o Mercado Pago...','success');
+  $('plano-info').innerHTML='Após o pagamento, seu plano será ativado automaticamente em até 5 minutos.';
+}
+
+function loadPlanos(){
+  const t=curProfile?.tenants;
+  if(!t)return;
+  const pl=t.plano||'trial';
+  const nomes={trial:'Trial (14 dias)',basic:'Basic',pro:'Pro',premium:'Premium'};
+  $('plano-atual-info').style.display='flex';
+  $('plano-atual-nome').textContent=nomes[pl]||pl;
+  $('plano-atual-status').innerHTML=t.trial_fim?`Válido até ${fmtD(t.trial_fim)}`:'Ativo';
+  if(t.plano==='trial'&&t.trial_fim){
+    const dias=Math.ceil((new Date(t.trial_fim)-new Date())/864e5);
+    if(dias>=0)$('plano-info').textContent=`${dias} dias restantes no trial.`;
+    else $('plano-info').innerHTML='<span style="color:var(--danger)">Trial expirado. Assine para continuar.</span>';
+  }
 }
 
 // ═══════════ INIT ═══════════
