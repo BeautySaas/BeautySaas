@@ -851,8 +851,9 @@ async function saveCompra(){
   const pagto=$('cm-pagto').value,parcelas=parseInt($('cm-parc').value)||1,venc1=$('cm-venc').value;
   const frete=parseFloat($('cm-frete').value)||0,sub=cItens.reduce((s,i)=>s+i.quantidade*i.preco_unitario,0),total=sub+frete;
   const obs=$('cm-obs').value||null;
-  const{data:last}=await sb.from('compras').select('numero').order('numero',{ascending:false}).limit(1);
-  const num=(last?.[0]?.numero||0)+1;
+  const{data:lastC}=await sb.from('compras').select('numero').order('created_at',{ascending:false}).limit(50);
+  const numsC=(lastC||[]).map(c=>parseInt(c.numero)||0);
+  const num=(numsC.length?Math.max(...numsC):0)+1;
   const cObj=wt({numero:num,fornecedor_id:forn,data_pedido:data,forma_pagamento:pagto,valor_total:total,observacoes:[nf?'NF: '+nf:'',frete>0?'Frete: R$'+frete.toFixed(2):'',obs||''].filter(Boolean).join('. ')||null,status:'pendente'});
   const{data:compra,error}=await sb.from('compras').insert(cObj).select().single();
   if(error){toast('Erro compra: '+error.message,'error');return}
@@ -954,8 +955,9 @@ async function saveVenda(){
   const parcelas=parseInt($('vm-parc').value)||1,desc=parseFloat($('vm-desc').value)||0;
   const sub=vItens.reduce((s,i)=>s+i.quantidade*i.preco_unitario,0),total=Math.max(0,sub-desc);
   const obs=[desc>0?'Desc: R$'+desc.toFixed(2):'',$('vm-obs').value||''].filter(Boolean).join('. ')||null;
-  const{data:last}=await sb.from('vendas').select('numero').order('numero',{ascending:false}).limit(1);
-  const num=(last?.[0]?.numero||0)+1;
+  const{data:lastV}=await sb.from('vendas').select('numero').order('created_at',{ascending:false}).limit(50);
+  const nums=(lastV||[]).map(v=>parseInt(v.numero)||0);
+  const num=(nums.length?Math.max(...nums):0)+1;
   const{data:venda,error}=await sb.from('vendas').insert(wt({numero:num,cliente_id:cli,data_venda:dataV,forma_pagamento:pagto,valor_total:total,observacoes:obs,status:'finalizada'})).select().single();
   if(error){toast('Erro: '+error.message,'error');return}
   for(const it of vItens){
