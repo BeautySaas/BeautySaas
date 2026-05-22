@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Orçamento — BeautySaaS</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:#faf8f5;color:#2d2418;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.card{background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.08);max-width:520px;width:100%;overflow:hidden}
+.header{background:linear-gradient(135deg,#c8956c,#8b4513);color:#fff;padding:28px;text-align:center}
+.header h1{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:600;margin-bottom:4px}
+.header p{opacity:.8;font-size:14px}
+.body{padding:24px}
+.info-row{display:flex;justify-content:space-between;margin-bottom:20px;font-size:13px}
+.info-label{color:#888;font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
+.info-val{font-weight:600}
+table{width:100%;border-collapse:collapse;margin-bottom:16px;font-size:14px}
+th{background:#faf8f5;padding:10px 8px;text-align:left;font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #eee}
+td{padding:10px 8px;border-bottom:1px solid #f5f5f5}
+.total-row{display:flex;justify-content:space-between;padding:12px 0;font-size:15px;font-weight:700;border-top:2px solid #eee;margin-top:4px}
+.total-val{color:#c8956c;font-size:18px}
+.obs{background:#faf8f5;border-radius:8px;padding:12px;font-size:13px;color:#666;margin-bottom:20px}
+.obs strong{color:#333}
+.validade{text-align:center;font-size:12px;color:#888;margin-bottom:20px}
+.validade.vencido{color:#e53e3e;font-weight:600}
+.btn{display:block;width:100%;padding:14px;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .2s}
+.btn-aprovar{background:linear-gradient(135deg,#38a169,#2d7a57);color:#fff;margin-bottom:10px}
+.btn-aprovar:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(56,161,105,.3)}
+.btn-recusar{background:#f7f7f7;color:#666;border:1px solid #eee}
+.btn-aprovar:disabled,.btn-recusar:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.status-box{text-align:center;padding:20px;border-radius:10px;margin-bottom:16px}
+.status-aprovado{background:#f0fff4;color:#38a169;border:2px solid #c6f6d5}
+.status-recusado{background:#fff5f5;color:#e53e3e;border:2px solid #fed7d7}
+.status-box h3{font-size:20px;margin-bottom:6px}
+.status-box p{font-size:13px;opacity:.8}
+.loading{text-align:center;padding:40px;color:#888}
+.loading-spin{font-size:32px;animation:spin 1s linear infinite;display:inline-block;margin-bottom:12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.brand{text-align:center;padding:16px;font-size:12px;color:#bbb}
+.brand strong{color:#c8956c}
+</style>
+</head>
+<body>
+<div style="width:100%;max-width:520px">
+  <div class="card">
+    <div class="header">
+      <h1>✦ BeautySaaS</h1>
+      <p>Seu orçamento está pronto</p>
+    </div>
+    <div class="body" id="body">
+      <div class="loading"><div class="loading-spin">⏳</div><p>Carregando orçamento...</p></div>
+    </div>
+  </div>
+  <div class="brand">Powered by <strong>BeautySaaS</strong></div>
+</div>
+
+<script>
+const SB_URL='https://lsedqqthrajwwgcgzukk.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxzZWRxcXRocmFqd3dnY2d6dWtrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxNTU0MjQsImV4cCI6MjA5NDczMTQyNH0.1AzUPgw3POWxCsE-fx7VOyXB4fZoMfrGHq3mVmmFAIs';
+const sb=window.supabase.createClient(SB_URL,SB_KEY);
+const fmt=v=>'R$ '+parseFloat(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtD=d=>{if(!d)return'—';const p=d.split('T')[0].split('-');return`${p[2]}/${p[1]}/${p[0]}`};
+
+const params=new URLSearchParams(window.location.search);
+const orcId=params.get('id');
+
+async function load(){
+  if(!orcId){showErro('Link inválido.');return}
+  const[{data:orc,error},{data:itens}]=await Promise.all([
+    sb.from('orcamentos').select('*,clientes(nome,telefone),tenants(nome)').eq('id',orcId).single(),
+    sb.from('orcamentos_itens').select('*,produtos(nome)').eq('orcamento_id',orcId)
+  ]);
+  if(error||!orc){showErro('Orçamento não encontrado.');return}
+  const vencido=orc.validade&&new Date(orc.validade)<new Date();
+  const aprovado=orc.status==='aprovado';
+  const recusado=orc.status==='recusado';
+  const body=document.getElementById('body');
+
+  let statusBox='';
+  if(aprovado) statusBox=`<div class="status-box status-aprovado"><h3>✅ Orçamento Aprovado!</h3><p>Obrigada! Entraremos em contato em breve.</p></div>`;
+  else if(recusado) statusBox=`<div class="status-box status-recusado"><h3>❌ Orçamento Recusado</h3><p>Se mudar de ideia, entre em contato conosco.</p></div>`;
+
+  const linhaItens=(itens||[]).map(i=>`<tr>
+    <td>${i.produtos?.nome||'?'}</td>
+    <td style="text-align:center">${i.quantidade}</td>
+    <td style="text-align:right">${fmt(i.preco_unitario)}</td>
+    <td style="text-align:right;font-weight:600">${fmt(i.quantidade*i.preco_unitario)}</td>
+  </tr>`).join('');
+
+  body.innerHTML=`
+    ${statusBox}
+    <div class="info-row">
+      <div><div class="info-label">Para</div><div class="info-val">${orc.clientes?.nome||'Consumidor'}</div></div>
+      <div style="text-align:right"><div class="info-label">Orçamento</div><div class="info-val">#${orc.numero}</div></div>
+    </div>
+    <div class="info-row">
+      <div><div class="info-label">Data</div><div class="info-val">${fmtD(orc.data)}</div></div>
+      <div style="text-align:right"><div class="info-label">Validade</div><div class="info-val">${fmtD(orc.validade)}</div></div>
+    </div>
+    <table>
+      <thead><tr><th>Produto</th><th style="text-align:center">Qtd</th><th style="text-align:right">Preço</th><th style="text-align:right">Total</th></tr></thead>
+      <tbody>${linhaItens}</tbody>
+    </table>
+    ${orc.desconto>0?`<div style="display:flex;justify-content:space-between;padding:8px 0;font-size:13px;color:#e53e3e"><span>Desconto</span><span>-${fmt(orc.desconto)}</span></div>`:''}
+    <div class="total-row"><span>Total</span><span class="total-val">${fmt(orc.valor_total)}</span></div>
+    ${orc.observacoes?`<div class="obs" style="margin-top:16px"><strong>Observações:</strong> ${orc.observacoes}</div>`:''}
+    ${vencido&&!aprovado?`<div class="validade vencido">⚠️ Este orçamento venceu em ${fmtD(orc.validade)}</div>`:`<div class="validade">Válido até ${fmtD(orc.validade)}</div>`}
+    ${!aprovado&&!recusado&&!vencido?`
+      <button class="btn btn-aprovar" id="btn-apr" onclick="aprovar()">✅ Confirmar Pedido</button>
+      <button class="btn btn-recusar" id="btn-rec" onclick="recusar()">Não tenho interesse</button>
+    `:''}
+  `;
+}
+
+async function aprovar(){
+  const[b1,b2]=[document.getElementById('btn-apr'),document.getElementById('btn-rec')];
+  b1.disabled=b2.disabled=true;b1.textContent='Confirmando...';
+  const{error}=await sb.from('orcamentos').update({status:'aprovado'}).eq('id',orcId);
+  if(error){b1.textContent='Erro — tente novamente';b1.disabled=b2.disabled=false;return}
+  b1.closest('div').insertAdjacentHTML('beforebegin',`<div class="status-box status-aprovado"><h3>✅ Pedido Confirmado!</h3><p>Obrigada! Entraremos em contato em breve. 💕</p></div>`);
+  b1.parentElement.remove();
+}
+async function recusar(){
+  if(!confirm('Deseja recusar este orçamento?'))return;
+  await sb.from('orcamentos').update({status:'recusado'}).eq('id',orcId);
+  location.reload();
+}
+function showErro(msg){document.getElementById('body').innerHTML=`<div style="text-align:center;padding:30px;color:#888"><div style="font-size:40px;margin-bottom:12px">😕</div><p>${msg}</p></div>`}
+
+load();
+</script>
+</body>
+</html>

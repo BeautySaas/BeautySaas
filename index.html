@@ -163,6 +163,24 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:14px 0}
   .form-row{grid-template-columns:1fr}
   .kpi-grid{grid-template-columns:repeat(2,1fr)}
 }
+/* ── RELATÓRIOS ── */
+.rel-filtros{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;padding:14px;background:var(--cream);border:1px solid var(--border);border-radius:10px}
+.rel-filtros .form-group{margin:0}
+.rel-header{margin-bottom:16px}
+.rel-header h2{font-family:'Cormorant Garamond',serif;font-size:22px;margin-bottom:10px}
+.rel-kpis{display:flex;gap:12px;flex-wrap:wrap}
+.rel-kpi{background:var(--cream);border:1px solid var(--border);border-radius:8px;padding:12px 18px;min-width:140px}
+.rel-kpi-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.rel-kpi-val{font-size:20px;font-weight:700;margin-top:2px}
+.rel-grafico{margin-bottom:16px}
+.dre-section{background:var(--cream);border:1px solid var(--border);border-radius:10px;margin-bottom:12px;overflow:hidden}
+.dre-section-title{padding:10px 16px;font-weight:600;font-size:13px;background:rgba(0,0,0,.03);border-bottom:1px solid var(--border);display:flex;justify-content:space-between}
+.dre-row{display:flex;justify-content:space-between;padding:8px 16px;font-size:13px;border-bottom:1px solid rgba(0,0,0,.04)}
+.dre-row:last-child{border-bottom:none}
+.dre-row.total{font-weight:700;background:rgba(0,0,0,.03)}
+.dre-row.lucro{font-weight:700;font-size:15px;color:var(--success)}
+.dre-row.prejuizo{font-weight:700;font-size:15px;color:var(--danger)}
+@media print{.sidebar,.topbar,.rel-filtros,button{display:none!important}.page{display:block!important}}
 </style>
 </head>
 <body>
@@ -219,12 +237,18 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:14px 0}
       <a class="nav-item" onclick="go('fornecedores')"><span class="icon">◎</span>Fornecedores</a>
       <a class="nav-item" onclick="go('contasbancarias')"><span class="icon">🏦</span>Contas Bancárias</a>
       <div class="nav-section">Operacional</div>
+      <a class="nav-item" onclick="go('orcamentos')"><span class="icon">📋</span>Orçamentos</a>
       <a class="nav-item" onclick="go('vendas')"><span class="icon">◆</span>Vendas</a>
       <a class="nav-item" onclick="go('compras')"><span class="icon">◇</span>Compras</a>
       <a class="nav-item" onclick="go('estoque')"><span class="icon">▣</span>Estoque</a>
       <div class="nav-section">Financeiro</div>
       <a class="nav-item" onclick="go('financeiro')"><span class="icon">◈</span>Contas Pagar/Rec.</a>
       <a class="nav-item" onclick="go('fluxo')"><span class="icon">◎</span>Fluxo de Caixa</a>
+      <div class="nav-section">Relatórios</div>
+      <a class="nav-item" onclick="go('rel-vendas')"><span class="icon">📊</span>Vendas</a>
+      <a class="nav-item" onclick="go('rel-dre')"><span class="icon">📈</span>DRE</a>
+      <a class="nav-item" onclick="go('rel-clientes')"><span class="icon">👥</span>Clientes</a>
+      <a class="nav-item" onclick="go('rel-estoque')"><span class="icon">📦</span>Estoque</a>
       <div class="nav-section">Conta</div>
       <a class="nav-item" onclick="go('planos')"><span class="icon">👑</span>Meu Plano</a>
     </nav>
@@ -366,6 +390,160 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:14px 0}
       </div>
 
       <!-- Planos -->
+      <!-- RELATÓRIO VENDAS -->
+      <!-- ORÇAMENTOS -->
+      <div class="page" id="pg-orcamentos">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:flex-end">
+          <div class="form-group"><label>De</label><input type="date" id="orf-ini" onchange="loadOrcamentos()" style="padding:5px 8px;font-size:12px"/></div>
+          <div class="form-group"><label>Até</label><input type="date" id="orf-fim" onchange="loadOrcamentos()" style="padding:5px 8px;font-size:12px"/></div>
+          <div class="form-group"><label>Status</label><select id="orf-sit" onchange="loadOrcamentos()" style="padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px">
+            <option value="">Todos</option><option value="rascunho">Rascunho</option><option value="enviado">Enviado</option><option value="aprovado">Aprovado</option><option value="recusado">Recusado</option>
+          </select></div>
+        </div>
+        <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr)">
+          <div class="kpi rose"><div class="kpi-label">Total</div><div class="kpi-value" id="ok-total">R$ —</div></div>
+          <div class="kpi gold"><div class="kpi-label">Enviados</div><div class="kpi-value" id="ok-enviados">—</div></div>
+          <div class="kpi success"><div class="kpi-label">Aprovados</div><div class="kpi-value" id="ok-aprovados">—</div></div>
+          <div class="kpi ink"><div class="kpi-label">Taxa Aprovação</div><div class="kpi-value" id="ok-taxa">—</div></div>
+        </div>
+        <div class="card"><div class="table-wrap"><table id="tbl-orcamentos"><thead><tr><th>#</th><th>Data</th><th>Cliente</th><th>Validade</th><th>Total</th><th>Status</th><th>Ações</th></tr></thead><tbody id="tb-orcamentos"></tbody></table></div></div>
+      </div>
+
+      <!-- MODAL ORÇAMENTO -->
+      <div id="orcamento-modal" class="modal-overlay" style="display:none">
+        <div class="modal modal-wide" style="max-width:860px">
+          <div class="modal-header"><h3 id="orm-title">Novo Orçamento</h3><button class="close-btn" onclick="$('orcamento-modal').style.display='none'">✕</button></div>
+          <div class="modal-body">
+            <div class="form-grid">
+              <div class="form-row">
+                <div class="form-group"><label>Cliente</label><select id="orm-cli"><option value="">Consumidor Final</option></select></div>
+                <div class="form-group"><label>Data</label><input type="date" id="orm-data"/></div>
+                <div class="form-group"><label>Validade</label><input type="date" id="orm-valid"/></div>
+              </div>
+              <div class="form-group"><label>Obs / Condições</label><textarea id="orm-obs" rows="2" placeholder="Ex: Frete grátis acima de R$ 100..."></textarea></div>
+            </div>
+            <div style="background:var(--cream);border-radius:8px;padding:14px;margin-top:10px">
+              <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px">ADICIONAR PRODUTO</div>
+              <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+                <div class="form-group" style="flex:1;min-width:180px;position:relative">
+                  <label>Buscar produto</label>
+                  <input id="orm-busca" placeholder="Nome ou código..." oninput="buscarProd(this,'orm-lista')" autocomplete="off"/>
+                  <div id="orm-lista" class="autocomplete-list" style="display:none"></div>
+                </div>
+                <div class="form-group"><label>Qtd</label><input id="orm-qtd" type="number" min="1" value="1" style="width:70px"/></div>
+                <div class="form-group"><label>Preço R$</label><input id="orm-preco" type="number" step="0.01" style="width:100px"/></div>
+                <button class="btn btn-secondary" onclick="addItemOrm()">+ Adicionar</button>
+              </div>
+              <table style="width:100%;margin-top:10px;font-size:13px"><thead><tr><th>Produto</th><th>Qtd</th><th>Preço</th><th>Subtotal</th><th></th></tr></thead><tbody id="orm-itens"></tbody></table>
+              <div style="text-align:right;margin-top:8px">
+                <span style="font-size:12px;color:var(--muted)">Desconto: R$ </span><input id="orm-desc" type="number" step="0.01" value="0" style="width:80px;font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:4px" oninput="calcTotalOrm()"/>
+                <span style="font-size:16px;font-weight:700;margin-left:12px">Total: <span id="orm-total">R$ 0,00</span></span>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="$('orcamento-modal').style.display='none'">Cancelar</button>
+            <button class="btn btn-secondary" onclick="saveOrcamento('rascunho')">💾 Salvar Rascunho</button>
+            <button class="btn btn-primary" onclick="saveOrcamento('enviado')">📤 Salvar e Enviar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- MODAL VISUALIZAR ORÇAMENTO -->
+      <div id="orv-modal" class="modal-overlay" style="display:none">
+        <div class="modal modal-wide" style="max-width:700px">
+          <div class="modal-header"><h3>Orçamento</h3><button class="close-btn" onclick="$('orv-modal').style.display='none'">✕</button></div>
+          <div class="modal-body" id="orv-body"></div>
+          <div class="modal-footer" id="orv-actions"></div>
+        </div>
+      </div>
+
+      <div class="page" id="pg-rel-vendas">
+        <div class="rel-filtros">
+          <div class="form-group"><label>De</label><input type="date" id="rv-ini"/></div>
+          <div class="form-group"><label>Até</label><input type="date" id="rv-fim"/></div>
+          <div class="form-group"><label>Cliente</label><select id="rv-cli" style="padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px"><option value="">Todos</option></select></div>
+          <div class="form-group"><label>Situação</label><select id="rv-sit" style="padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px"><option value="">Todas</option><option value="pago">Pago</option><option value="pendente">A Receber</option></select></div>
+          <button class="btn btn-primary" onclick="gerarRelVendas()">🔍 Gerar</button>
+          <button class="btn btn-secondary" onclick="exportRelPDF('rel-vendas-content','Relatório de Vendas')">⬇ PDF</button>
+          <button class="btn btn-secondary" onclick="exportRelXLSX('rv-tabela','Vendas')">⬇ Excel</button>
+        </div>
+        <div id="rel-vendas-content">
+          <div class="rel-header" style="display:none" id="rv-header">
+            <h2>Relatório de Vendas</h2>
+            <div class="rel-kpis" id="rv-kpis"></div>
+          </div>
+          <div class="rel-grafico" id="rv-grafico" style="display:none"></div>
+          <div class="card" id="rv-card" style="display:none">
+            <div class="table-wrap"><table id="rv-tabela">
+              <thead><tr><th>#</th><th>Data</th><th>Cliente</th><th>Pagamento</th><th>Produtos</th><th>Total</th><th>Situação</th></tr></thead>
+              <tbody id="rv-body"></tbody>
+              <tfoot id="rv-foot"></tfoot>
+            </table></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RELATÓRIO DRE -->
+      <div class="page" id="pg-rel-dre">
+        <div class="rel-filtros">
+          <div class="form-group"><label>De</label><input type="date" id="dre-ini"/></div>
+          <div class="form-group"><label>Até</label><input type="date" id="dre-fim"/></div>
+          <button class="btn btn-primary" onclick="gerarDRE()">🔍 Gerar</button>
+          <button class="btn btn-secondary" onclick="exportRelPDF('rel-dre-content','DRE')">⬇ PDF</button>
+          <button class="btn btn-secondary" onclick="exportRelXLSX('dre-tabela','DRE')">⬇ Excel</button>
+        </div>
+        <div id="rel-dre-content">
+          <div id="dre-corpo" style="display:none"></div>
+        </div>
+      </div>
+
+      <!-- RELATÓRIO CLIENTES -->
+      <div class="page" id="pg-rel-clientes">
+        <div class="rel-filtros">
+          <div class="form-group"><label>Tipo</label><select id="rc-tipo" style="padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px">
+            <option value="ranking">Ranking de Compras</option>
+            <option value="inadimplentes">Inadimplentes</option>
+            <option value="aniversariantes">Aniversariantes do Mês</option>
+          </select></div>
+          <div class="form-group" id="rc-mes-wrap"><label>Mês</label><select id="rc-mes" style="padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px">
+            <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option><option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option><option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+          </select></div>
+          <button class="btn btn-primary" onclick="gerarRelClientes()">🔍 Gerar</button>
+          <button class="btn btn-secondary" onclick="exportRelPDF('rel-clientes-content','Relatório de Clientes')">⬇ PDF</button>
+          <button class="btn btn-secondary" onclick="exportRelXLSX('rc-tabela','Clientes')">⬇ Excel</button>
+        </div>
+        <div id="rel-clientes-content">
+          <div class="card" id="rc-card" style="display:none">
+            <div class="table-wrap"><table id="rc-tabela">
+              <thead id="rc-head"></thead>
+              <tbody id="rc-body"></tbody>
+            </table></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RELATÓRIO ESTOQUE -->
+      <div class="page" id="pg-rel-estoque">
+        <div class="rel-filtros">
+          <div class="form-group"><label>De</label><input type="date" id="re-ini"/></div>
+          <div class="form-group"><label>Até</label><input type="date" id="re-fim"/></div>
+          <div class="form-group"><label>Produto</label><input id="re-prod" placeholder="Nome ou código..." style="padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px"/></div>
+          <div class="form-group"><label>Tipo</label><select id="re-tipo" style="padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px"><option value="">Todos</option><option value="entrada">Entradas</option><option value="saida">Saídas</option></select></div>
+          <button class="btn btn-primary" onclick="gerarRelEstoque()">🔍 Gerar</button>
+          <button class="btn btn-secondary" onclick="exportRelPDF('rel-estoque-content','Relatório de Estoque')">⬇ PDF</button>
+          <button class="btn btn-secondary" onclick="exportRelXLSX('re-tabela','Estoque')">⬇ Excel</button>
+        </div>
+        <div id="rel-estoque-content">
+          <div class="card" id="re-card" style="display:none">
+            <div class="table-wrap"><table id="re-tabela">
+              <thead><tr><th>Data</th><th>Produto</th><th>Tipo</th><th>Qtd</th><th>Saldo Ant.</th><th>Saldo Atual</th><th>Referência</th></tr></thead>
+              <tbody id="re-body"></tbody>
+            </table></div>
+          </div>
+        </div>
+      </div>
+
       <div class="page" id="pg-planos">
         <div style="text-align:center;margin-bottom:24px">
           <h2 style="font-family:'Cormorant Garamond',serif;font-size:26px;margin-bottom:4px">Escolha seu Plano</h2>
@@ -562,13 +740,14 @@ async function doLogout(){await sb.auth.signOut()}
 function trErr(m){if(m.includes('Invalid login'))return'Email ou senha incorretos';if(m.includes('already registered'))return'Email já cadastrado';if(m.includes('Email not confirmed'))return'Confirme seu email';if(m.includes('Database error'))return'Erro de banco. Rode o schema.sql no Supabase.';return m}
 
 // ═══════════ NAV ═══════════
-const pgTitle={dashboard:'Dashboard',marcas:'Marcas',produtos:'Produtos',clientes:'Clientes',fornecedores:'Fornecedores',contasbancarias:'Contas Bancárias',vendas:'Vendas',compras:'Compras',estoque:'Estoque',financeiro:'Contas a Pagar / Receber',fluxo:'Fluxo de Caixa',planos:'Meu Plano'};
+const pgTitle={dashboard:'Dashboard',marcas:'Marcas',produtos:'Produtos',clientes:'Clientes',fornecedores:'Fornecedores',contasbancarias:'Contas Bancárias',orcamentos:'Orçamentos',vendas:'Vendas',compras:'Compras',estoque:'Estoque',financeiro:'Contas a Pagar / Receber',fluxo:'Fluxo de Caixa',planos:'Meu Plano'};
 const pgAct={
   marcas:[{l:'📥 Importar',f:'openImport("marcas")'},{l:'+ Nova Marca',f:'openMarca()',p:true}],
   produtos:[{l:'📥 Importar',f:'openImport("produtos")'},{l:'+ Novo Produto',f:'openProduto()',p:true}],
   clientes:[{l:'📥 Importar',f:'openImport("clientes")'},{l:'+ Novo Cliente',f:'openCliente()',p:true}],
   fornecedores:[{l:'+ Novo Fornecedor',f:'openFornecedor()',p:true}],
   contasbancarias:[{l:'+ Nova Conta',f:'openContaBancaria()',p:true}],
+  orcamentos:[{l:'+ Novo Orçamento',f:'openOrcamentoModal()',p:true}],
   vendas:[{l:'🔄 Recalcular Status',f:'recalcTodosStatus("venda")'},{l:'+ Nova Venda',f:'openVendaModal()',p:true}],
   compras:[{l:'🔄 Recalcular Status',f:'recalcTodosStatus("compra")'},{l:'+ Nova Compra',f:'openCompraModal()',p:true}],
   financeiro:[{l:'+ Novo Lançamento',f:'openLancamento()',p:true}],
@@ -580,7 +759,7 @@ function go(pg){
   $('page-title').textContent=pgTitle[pg]||pg;curPage=pg;
   const w=$('topbar-actions');w.innerHTML='';
   (pgAct[pg]||[]).forEach(a=>{const b=document.createElement('button');b.className='btn '+(a.p?'btn-primary':'btn-secondary');b.textContent=a.l;b.setAttribute('onclick',a.f);w.appendChild(b)});
-  const ld={dashboard:loadDashboard,marcas:loadMarcas,produtos:loadProdutos,clientes:loadClientes,fornecedores:loadFornecedores,contasbancarias:loadCB,vendas:loadVendas,compras:loadCompras,estoque:loadEstoque,financeiro:()=>loadFin(finTipo),fluxo:loadFluxo,planos:loadPlanos};
+  const ld={dashboard:loadDashboard,marcas:loadMarcas,produtos:loadProdutos,clientes:loadClientes,fornecedores:loadFornecedores,contasbancarias:loadCB,orcamentos:loadOrcamentos,vendas:loadVendas,compras:loadCompras,estoque:loadEstoque,financeiro:()=>loadFin(finTipo),fluxo:loadFluxo,planos:loadPlanos,'rel-vendas':()=>{if(!$('rv-ini').value){$('rv-ini').value=mesIni();$('rv-fim').value=fimMes()}},'rel-dre':()=>{if(!$('dre-ini').value){$('dre-ini').value=mesIni();$('dre-fim').value=fimMes()}},'rel-clientes':()=>{},'rel-estoque':()=>{if(!$('re-ini').value){$('re-ini').value=mesIni();$('re-fim').value=fimMes()}}};
   if(ld[pg])ld[pg]();
 }
 function closeModal(){$('modal').style.display='none';$('modal-save').style.display=''}
@@ -1269,6 +1448,365 @@ async function doImport(){
   ['preco_custo','preco_venda','estoque_atual'].forEach(k=>{if(obj[k])obj[k]=parseFloat(String(obj[k]).replace(',','.'))||0});
   const{error}=await sb.from(impTarget).insert(obj);if(error)err++;else ok++}
   toast(`Importados: ${ok} · Erros: ${err}`,err?'warn':'success');$('import-modal').style.display='none';go(curPage);
+}
+
+// ═══════════ ORÇAMENTOS ═══════════
+let ormItens=[];
+const BASE_URL=()=>window.location.href.replace(/\/[^/]*$/',/').replace('app_v4.html','').replace('index.html','');
+
+const stOrm=s=>({rascunho:'<span class="badge badge-muted">Rascunho</span>',enviado:'<span class="badge badge-warn">Enviado</span>',aprovado:'<span class="badge badge-success">Aprovado ✓</span>',recusado:'<span class="badge badge-danger">Recusado</span>'}[s]||s);
+
+async function loadOrcamentos(){
+  if(!$('orf-ini').value){$('orf-ini').value=mesIni();$('orf-fim').value=fimMes()}
+  let q=sb.from('orcamentos').select('*,clientes(nome)').order('created_at',{ascending:false}).limit(200);
+  const ini=$('orf-ini').value,fim=$('orf-fim').value,sit=$('orf-sit').value;
+  if(ini)q=q.gte('data',ini);if(fim)q=q.lte('data',fim);if(sit)q=q.eq('status',sit);
+  const{data,error}=await q;
+  if(error){console.error('loadOrcamentos:',error);toast('Erro: '+error.message,'error');return}
+  const orcs=data||[];
+  const enviados=orcs.filter(o=>o.status==='enviado'||o.status==='aprovado'||o.status==='recusado');
+  const aprovados=orcs.filter(o=>o.status==='aprovado');
+  $('ok-total').textContent=fmt(sm(orcs,'valor_total'));
+  $('ok-enviados').textContent=enviados.length;
+  $('ok-aprovados').textContent=aprovados.length;
+  $('ok-taxa').textContent=enviados.length?Math.round(aprovados.length/enviados.length*100)+'%':'—';
+  $('tb-orcamentos').innerHTML=orcs.length?orcs.map(o=>`<tr>
+    <td><strong>#${o.numero||'?'}</strong></td>
+    <td>${fmtD(o.data)}</td>
+    <td>${o.clientes?.nome||'Consumidor'}</td>
+    <td>${fmtD(o.validade)}</td>
+    <td><strong>${fmt(o.valor_total)}</strong></td>
+    <td>${stOrm(o.status)}</td>
+    <td style="display:flex;gap:4px;flex-wrap:wrap">
+      <button class="btn btn-sm btn-secondary" onclick="verOrcamento('${o.id}')">👁 Ver</button>
+      ${o.status==='aprovado'?`<button class="btn btn-sm btn-success" onclick="converterVenda('${o.id}')">✓ Converter</button>`:''}
+      ${o.status!=='aprovado'&&o.status!=='recusado'?`<button class="btn btn-sm btn-secondary" onclick="enviarWhatsApp('${o.id}')">📱 WhatsApp</button><button class="btn btn-sm btn-secondary" onclick="copiarLink('${o.id}')">🔗 Link</button>`:''}
+      <button class="btn btn-sm btn-danger" onclick="del('orcamentos','${o.id}')">🗑</button>
+    </td>
+  </tr>`).join(''):emptyR(7,'Nenhum orçamento');
+}
+
+async function openOrcamentoModal(id){
+  ormItens=[];selProd=null;
+  $('orm-title').textContent=id?'Editar Orçamento':'Novo Orçamento';
+  $('orm-data').value=hoje();
+  const valid=new Date();valid.setDate(valid.getDate()+7);
+  $('orm-valid').value=valid.toISOString().slice(0,10);
+  $('orm-busca').value='';$('orm-qtd').value=1;$('orm-preco').value='';
+  $('orm-itens').innerHTML='';$('orm-total').textContent='R$ 0,00';$('orm-desc').value=0;$('orm-obs').value='';
+  const{data:cls}=await sb.from('clientes').select('id,nome').order('nome');
+  $('orm-cli').innerHTML='<option value="">Consumidor Final</option>'+(cls||[]).map(c=>`<option value="${c.id}">${c.nome}</option>`).join('');
+  $('orcamento-modal').style.display='flex';
+}
+function addItemOrm(){
+  if(!selProd){toast('Selecione um produto','warn');return}
+  const qtd=parseFloat($('orm-qtd').value)||1,preco=parseFloat($('orm-preco').value)||selProd.preco_venda;
+  const ex=ormItens.find(i=>i.produto_id===selProd.id);
+  if(ex){ex.quantidade+=qtd;ex.preco_unitario=preco}
+  else ormItens.push({produto_id:selProd.id,nome:selProd.nome,quantidade:qtd,preco_unitario:preco});
+  selProd=null;$('orm-busca').value='';$('orm-qtd').value=1;$('orm-preco').value='';renderOrmItens();
+}
+function renderOrmItens(){
+  $('orm-itens').innerHTML=ormItens.map((i,x)=>`<tr>
+    <td>${i.nome}</td><td>${i.quantidade}</td><td>${fmt(i.preco_unitario)}</td>
+    <td><strong>${fmt(i.quantidade*i.preco_unitario)}</strong></td>
+    <td><button onclick="ormItens.splice(${x},1);renderOrmItens()" style="background:none;border:none;cursor:pointer;color:var(--danger)">✕</button></td>
+  </tr>`).join('');calcTotalOrm();
+}
+function calcTotalOrm(){
+  const sub=ormItens.reduce((s,i)=>s+i.quantidade*i.preco_unitario,0);
+  const desc=parseFloat($('orm-desc').value)||0;
+  $('orm-total').textContent=fmt(Math.max(0,sub-desc));
+}
+async function saveOrcamento(status){
+  if(!ormItens.length){toast('Adicione ao menos 1 produto','error');return}
+  const cli=$('orm-cli').value||null,dataO=$('orm-data').value,valid=$('orm-valid').value;
+  const desc=parseFloat($('orm-desc').value)||0;
+  const sub=ormItens.reduce((s,i)=>s+i.quantidade*i.preco_unitario,0);
+  const total=Math.max(0,sub-desc);
+  const{data:last}=await sb.from('orcamentos').select('numero').order('created_at',{ascending:false}).limit(50);
+  const nums=(last||[]).map(o=>parseInt(o.numero)||0);
+  const num=(nums.length?Math.max(...nums):0)+1;
+  const{data:orc,error}=await sb.from('orcamentos').insert(wt({
+    numero:num,cliente_id:cli,data:dataO,validade:valid,
+    valor_total:total,desconto:desc,observacoes:$('orm-obs').value||null,status
+  })).select().single();
+  if(error){toast('Erro: '+error.message,'error');return}
+  for(const it of ormItens){
+    await sb.from('orcamentos_itens').insert(wt({orcamento_id:orc.id,produto_id:it.produto_id,quantidade:it.quantidade,preco_unitario:it.preco_unitario}));
+  }
+  toast(`Orçamento #${num} salvo!`,'success');
+  $('orcamento-modal').style.display='none';loadOrcamentos();
+}
+
+async function verOrcamento(id){
+  const[{data:orc},{data:itens}]=await Promise.all([
+    sb.from('orcamentos').select('*,clientes(nome,telefone,whatsapp)').eq('id',id).single(),
+    sb.from('orcamentos_itens').select('*,produtos(nome,codigo)').eq('orcamento_id',id)
+  ]);
+  if(!orc)return;
+  const tbl=(itens||[]).map(i=>`<tr><td>${i.produtos?.nome||'?'}</td><td style="text-align:center">${i.quantidade}</td><td style="text-align:right">${fmt(i.preco_unitario)}</td><td style="text-align:right"><strong>${fmt(i.quantidade*i.preco_unitario)}</strong></td></tr>`).join('');
+  $('orv-body').innerHTML=`
+    <div style="display:flex;justify-content:space-between;margin-bottom:16px">
+      <div><div style="font-size:11px;color:var(--muted)">CLIENTE</div><div style="font-weight:600">${orc.clientes?.nome||'Consumidor Final'}</div>${orc.clientes?.telefone?`<div style="font-size:12px;color:var(--muted)">${orc.clientes.telefone}</div>`:''}</div>
+      <div style="text-align:right"><div style="font-size:11px;color:var(--muted)">ORÇAMENTO #${orc.numero}</div><div>${fmtD(orc.data)}</div><div style="font-size:12px;color:var(--muted)">Válido até ${fmtD(orc.validade)}</div></div>
+    </div>
+    <table style="width:100%;font-size:13px;border-collapse:collapse">
+      <thead><tr style="background:var(--cream)"><th style="padding:8px;text-align:left">Produto</th><th style="padding:8px;text-align:center">Qtd</th><th style="padding:8px;text-align:right">Preço</th><th style="padding:8px;text-align:right">Subtotal</th></tr></thead>
+      <tbody>${tbl}</tbody>
+      <tfoot>
+        ${orc.desconto>0?`<tr><td colspan="3" style="padding:6px 8px;text-align:right;color:var(--muted)">Desconto</td><td style="padding:6px 8px;text-align:right;color:var(--danger)">-${fmt(orc.desconto)}</td></tr>`:''}
+        <tr style="background:var(--cream);font-weight:700"><td colspan="3" style="padding:8px;text-align:right">TOTAL</td><td style="padding:8px;text-align:right;color:var(--rose)">${fmt(orc.valor_total)}</td></tr>
+      </tfoot>
+    </table>
+    ${orc.observacoes?`<div style="margin-top:12px;padding:10px;background:var(--cream);border-radius:6px;font-size:13px"><strong>Obs:</strong> ${orc.observacoes}</div>`:''}
+    <div style="margin-top:12px;font-size:11px;color:var(--muted)">Status: ${stOrm(orc.status)}</div>`;
+  $('orv-actions').innerHTML=`
+    <button class="btn btn-secondary" onclick="$('orv-modal').style.display='none'">Fechar</button>
+    ${orc.status!=='aprovado'&&orc.status!=='recusado'?`
+      <button class="btn btn-secondary" onclick="$('orv-modal').style.display='none';enviarWhatsApp('${id}')">📱 WhatsApp</button>
+      <button class="btn btn-secondary" onclick="copiarLink('${id}')">🔗 Copiar Link</button>
+      <button class="btn btn-success" onclick="mudarStatusOrm('${id}','aprovado')">✓ Marcar Aprovado</button>
+      <button class="btn btn-danger" onclick="mudarStatusOrm('${id}','recusado')">✗ Marcar Recusado</button>
+    `:''}
+    ${orc.status==='aprovado'?`<button class="btn btn-primary" onclick="$('orv-modal').style.display='none';converterVenda('${id}')">💰 Converter em Venda</button>`:''}`;
+  $('orv-modal').style.display='flex';
+}
+
+async function mudarStatusOrm(id,status){
+  await sb.from('orcamentos').update({status}).eq('id',id);
+  toast(status==='aprovado'?'✅ Orçamento aprovado!':'Orçamento recusado','success');
+  $('orv-modal').style.display='none';loadOrcamentos();
+}
+
+async function converterVenda(orcId){
+  const[{data:orc},{data:itens}]=await Promise.all([
+    sb.from('orcamentos').select('*').eq('id',orcId).single(),
+    sb.from('orcamentos_itens').select('*,produtos(estoque_atual,nome)').eq('orcamento_id',orcId)
+  ]);
+  if(!orc||!itens?.length){toast('Orçamento sem itens','error');return}
+  // Validar estoque
+  for(const it of itens){
+    if(it.quantidade>parseFloat(it.produtos?.estoque_atual||0)){toast(`Estoque insuficiente: ${it.produtos?.nome}`,'error');return}
+  }
+  const{data:lastV}=await sb.from('vendas').select('numero').order('created_at',{ascending:false}).limit(50);
+  const nums=(lastV||[]).map(v=>parseInt(v.numero)||0);
+  const num=(nums.length?Math.max(...nums):0)+1;
+  const{data:venda,error}=await sb.from('vendas').insert(wt({numero:num,cliente_id:orc.cliente_id,data_venda:hoje(),forma_pagamento:'pix',valor_total:orc.valor_total,observacoes:`Convertido do Orçamento #${orc.numero}`,status:'finalizada'})).select().single();
+  if(error){toast('Erro: '+error.message,'error');return}
+  for(const it of itens){
+    await sb.from('vendas_itens').insert(wt({venda_id:venda.id,produto_id:it.produto_id,quantidade:it.quantidade,preco_unitario:it.preco_unitario}));
+    const ea=parseFloat(it.produtos?.estoque_atual||0),en=Math.max(0,ea-it.quantidade);
+    await sb.from('produtos').update({estoque_atual:en}).eq('id',it.produto_id);
+    await sb.from('estoque_movimentacoes').insert(wt({produto_id:it.produto_id,tipo:'saida',quantidade:it.quantidade,saldo_anterior:ea,saldo_posterior:en,referencia_id:venda.id,referencia_tipo:'venda',observacoes:`Venda #${num} (de Orç. #${orc.numero})`}));
+  }
+  await sb.from('lancamentos').insert(wt({tipo:'receber',descricao:`Venda #${num} (Orç. #${orc.numero})`,categoria:'venda',valor:orc.valor_total,data_vencimento:hoje(),data_pagamento:null,status:'pendente',referencia_id:venda.id,referencia_tipo:'venda'}));
+  await sb.from('orcamentos').update({status:'aprovado'}).eq('id',orcId);
+  toast(`✅ Venda #${num} criada com sucesso!`,'success');go('vendas');
+}
+
+async function enviarWhatsApp(orcId){
+  const[{data:orc},{data:itens}]=await Promise.all([
+    sb.from('orcamentos').select('*,clientes(nome,telefone,whatsapp)').eq('id',orcId).single(),
+    sb.from('orcamentos_itens').select('*,produtos(nome)').eq('orcamento_id',orcId)
+  ]);
+  if(!orc)return;
+  const tel=(orc.clientes?.whatsapp||orc.clientes?.telefone||'').replace(/\D/g,'');
+  const link=`${window.location.origin}${window.location.pathname.replace('app_v4.html','').replace('index.html','')}orcamento.html?id=${orcId}`;
+  const linhaItens=(itens||[]).map(i=>`• ${i.produtos?.nome} x${i.quantidade} = ${fmt(i.quantidade*i.preco_unitario)}`).join('\n');
+  const msg=`Olá${orc.clientes?.nome?' '+orc.clientes.nome:''}! 😊\n\nSegue seu orçamento *#${orc.numero}*:\n\n${linhaItens}\n${orc.desconto>0?'\n🏷 Desconto: -'+fmt(orc.desconto):''}\n*Total: ${fmt(orc.valor_total)}*\n\n✅ Válido até ${fmtD(orc.validade)}\n\nClique para aprovar:\n${link}\n\nQualquer dúvida, estou à disposição! 💕`;
+  const url=`https://wa.me/${tel?'55'+tel:''}?text=${encodeURIComponent(msg)}`;
+  window.open(url,'_blank');
+  await sb.from('orcamentos').update({status:'enviado'}).eq('id',orcId);
+  loadOrcamentos();
+}
+
+function copiarLink(orcId){
+  const link=`${window.location.origin}${window.location.pathname.replace('app_v4.html','').replace('index.html','')}orcamento.html?id=${orcId}`;
+  navigator.clipboard.writeText(link).then(()=>toast('Link copiado! 🔗','success'));
+}
+
+// ═══════════ RELATÓRIOS — UTILS ═══════════
+const pgTitle_rel={'rel-vendas':'Relatório de Vendas','rel-dre':'DRE — Resultado','rel-clientes':'Relatório de Clientes','rel-estoque':'Movimentações de Estoque'};
+Object.assign(pgTitle,pgTitle_rel);
+
+function exportRelPDF(contentId,titulo){
+  const w=window.open('','_blank');
+  const content=$( contentId).innerHTML;
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>${titulo}</title>
+  <style>body{font-family:Arial,sans-serif;font-size:12px;color:#333;padding:20px}
+  h2{font-size:18px;margin-bottom:12px}table{width:100%;border-collapse:collapse;margin-top:10px}
+  th{background:#f5f0eb;padding:7px;text-align:left;font-size:11px;border:1px solid #ddd}
+  td{padding:7px;border:1px solid #eee;font-size:12px}
+  .rel-kpis{display:flex;gap:12px;margin-bottom:16px}
+  .rel-kpi{border:1px solid #ddd;border-radius:6px;padding:10px 14px;min-width:120px}
+  .rel-kpi-label{font-size:10px;color:#888;text-transform:uppercase}
+  .rel-kpi-val{font-size:18px;font-weight:700;margin-top:2px}
+  .dre-section{border:1px solid #ddd;border-radius:6px;margin-bottom:10px}
+  .dre-section-title{padding:8px 12px;font-weight:600;background:#f5f0eb;border-bottom:1px solid #ddd;display:flex;justify-content:space-between}
+  .dre-row{display:flex;justify-content:space-between;padding:6px 12px;border-bottom:1px solid #eee;font-size:12px}
+  .dre-row.total,.dre-row.lucro,.dre-row.prejuizo{font-weight:700}
+  .dre-row.lucro{color:green}.dre-row.prejuizo{color:red}
+  </style></head><body>
+  <h2>${titulo}</h2><p style="color:#888;font-size:11px">Gerado em ${new Date().toLocaleString('pt-BR')}</p>
+  ${content}</body></html>`);
+  w.document.close();
+  setTimeout(()=>w.print(),600);
+}
+
+function exportRelXLSX(tabelaId,sheetName){
+  const el=$(tabelaId);if(!el){toast('Gere o relatório primeiro','warn');return}
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.table_to_sheet(el);
+  XLSX.utils.book_append_sheet(wb,ws,sheetName);
+  XLSX.writeFile(wb,`${sheetName}_${hoje()}.xlsx`);
+}
+
+// ═══════════ RELATÓRIO DE VENDAS ═══════════
+async function gerarRelVendas(){
+  const ini=$('rv-ini').value||mesIni(),fim=$('rv-fim').value||fimMes();
+  $('rv-ini').value=ini;$('rv-fim').value=fim;
+  // Popular clientes
+  const{data:cls}=await sb.from('clientes').select('id,nome').order('nome');
+  const selC=$('rv-cli');if(selC.options.length<=1)selC.innerHTML='<option value="">Todos</option>'+(cls||[]).map(c=>`<option value="${c.id}">${c.nome}</option>`).join('');
+  let q=sb.from('vendas').select('*,clientes(nome),vendas_itens(quantidade,preco_unitario,produtos(nome))').gte('data_venda',ini).lte('data_venda',fim).order('data_venda');
+  const cliF=$('rv-cli').value;if(cliF)q=q.eq('cliente_id',cliF);
+  const{data:vendas}=await q;
+  const{data:lancs}=await sb.from('lancamentos').select('status,valor,referencia_id').eq('tipo','receber').eq('referencia_tipo','venda');
+  const lancMap={};(lancs||[]).forEach(l=>{if(!lancMap[l.referencia_id])lancMap[l.referencia_id]={total:0,pago:0};lancMap[l.referencia_id].total++;if(l.status==='pago')lancMap[l.referencia_id].pago++});
+  const getSit=v=>{const st=lancMap[v.id];if(st)return st.pago>=st.total?'pago':'pendente';return(v.forma_pagamento==='fiado'||v.forma_pagamento==='cartao_credito')?'pendente':'pago'};
+  let vData=vendas||[];
+  const sitF=$('rv-sit').value;if(sitF)vData=vData.filter(v=>getSit(v)===sitF);
+  // KPIs
+  const totalVendas=sm(vData,'valor_total');
+  const totalPago=sm(vData.filter(v=>getSit(v)==='pago'),'valor_total');
+  const totalPend=sm(vData.filter(v=>getSit(v)==='pendente'),'valor_total');
+  $('rv-kpis').innerHTML=`
+    <div class="rel-kpi"><div class="rel-kpi-label">Total Vendas</div><div class="rel-kpi-val" style="color:var(--rose)">${fmt(totalVendas)}</div></div>
+    <div class="rel-kpi"><div class="rel-kpi-label">Recebido</div><div class="rel-kpi-val" style="color:var(--success)">${fmt(totalPago)}</div></div>
+    <div class="rel-kpi"><div class="rel-kpi-label">A Receber</div><div class="rel-kpi-val" style="color:var(--gold)">${fmt(totalPend)}</div></div>
+    <div class="rel-kpi"><div class="rel-kpi-label">Qtd Vendas</div><div class="rel-kpi-val">${vData.length}</div></div>
+    <div class="rel-kpi"><div class="rel-kpi-label">Ticket Médio</div><div class="rel-kpi-val">${fmt(vData.length?totalVendas/vData.length:0)}</div></div>`;
+  // Gráfico barras por dia
+  const porDia={};vData.forEach(v=>{const d=fmtD(v.data_venda);porDia[d]=(porDia[d]||0)+parseFloat(v.valor_total||0)});
+  const dias=Object.entries(porDia).sort((a,b)=>a[0]>b[0]?1:-1);const mx=Math.max(...dias.map(d=>d[1]),1);
+  $('rv-grafico').innerHTML=dias.length?`<div class="card"><div class="card-header"><div class="card-title">Vendas por Dia</div></div><div class="chart-bar-wrap" style="padding:12px">${dias.map(([d,v])=>`<div class="chart-bar-row"><div class="chart-bar-label" style="width:80px">${d}</div><div class="chart-bar-track"><div class="chart-bar-fill" style="width:${(v/mx*100).toFixed(0)}%"></div></div><div class="chart-bar-val">${fmt(v)}</div></div>`).join('')}</div></div>`:'';
+  // Tabela
+  $('rv-body').innerHTML=vData.length?vData.map(v=>{
+    const itens=(v.vendas_itens||[]).map(i=>i.produtos?.nome||'?').join(', ')||'—';
+    const sit=getSit(v);
+    return`<tr><td>#${v.numero||'?'}</td><td>${fmtD(v.data_venda)}</td><td>${v.clientes?.nome||'Consumidor'}</td><td>${pagtoLbl(v.forma_pagamento)}</td><td style="font-size:11px;max-width:200px">${itens}</td><td><strong>${fmt(v.valor_total)}</strong></td><td>${sit==='pago'?'Pago':'A Receber'}</td></tr>`}).join(''):'<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted)">Nenhuma venda no período</td></tr>';
+  $('rv-foot').innerHTML=`<tr style="background:var(--cream);font-weight:700"><td colspan="5">TOTAL (${vData.length} vendas)</td><td>${fmt(totalVendas)}</td><td></td></tr>`;
+  $('rv-header').style.display='';$('rv-grafico').style.display='';$('rv-card').style.display='';
+}
+
+// ═══════════ DRE ═══════════
+async function gerarDRE(){
+  const ini=$('dre-ini').value||mesIni(),fim=$('dre-fim').value||fimMes();
+  $('dre-ini').value=ini;$('dre-fim').value=fim;
+  const[qV,qC,qL]=await Promise.all([
+    sb.from('vendas').select('valor_total,vendas_itens(quantidade,preco_unitario,produtos(preco_custo))').gte('data_venda',ini).lte('data_venda',fim).eq('status','pago'),
+    sb.from('compras').select('valor_total').gte('data_pedido',ini).lte('data_pedido',fim),
+    sb.from('lancamentos').select('tipo,categoria,valor,status,descricao').gte('data_vencimento',ini).lte('data_vencimento',fim)
+  ]);
+  const vendas=qV.data||[],lancs=qL.data||[];
+  // Receita bruta
+  const recBruta=sm(vendas,'valor_total');
+  // CMV (custo dos produtos vendidos)
+  let cmv=0;vendas.forEach(v=>(v.vendas_itens||[]).forEach(i=>{cmv+=parseFloat(i.quantidade||0)*parseFloat(i.produtos?.preco_custo||0)}));
+  const lucBruto=recBruta-cmv;
+  const margBruta=recBruta>0?(lucBruto/recBruta*100).toFixed(1):0;
+  // Despesas operacionais (contas a pagar pagas, exceto compras)
+  const despOp=lancs.filter(l=>l.tipo==='pagar'&&l.status==='pago'&&l.categoria!=='compra');
+  const totalDespOp=sm(despOp,'valor');
+  // Despesas por categoria
+  const despCat={};despOp.forEach(l=>{const c=l.categoria||'outros';despCat[c]=(despCat[c]||0)+parseFloat(l.valor||0)});
+  // Receitas não-venda (receber, não venda)
+  const outrasRec=lancs.filter(l=>l.tipo==='receber'&&l.status==='pago'&&l.categoria!=='venda');
+  const totalOutrasRec=sm(outrasRec,'valor');
+  const lucLiquido=lucBruto-totalDespOp+totalOutrasRec;
+  const isLucro=lucLiquido>=0;
+  $('dre-corpo').innerHTML=`
+    <div style="margin-bottom:12px"><h3 style="font-family:'Cormorant Garamond',serif;font-size:18px">DRE — ${fmtD(ini)} a ${fmtD(fim)}</h3></div>
+    <table id="dre-tabela" style="display:none"><thead><tr><th>Descrição</th><th>Valor</th></tr></thead><tbody>
+      <tr><td>Receita Bruta de Vendas</td><td>${fmt(recBruta)}</td></tr>
+      <tr><td>(-) Custo das Mercadorias Vendidas</td><td>-${fmt(cmv)}</td></tr>
+      <tr><td>= Lucro Bruto</td><td>${fmt(lucBruto)}</td></tr>
+      <tr><td>(-) Despesas Operacionais</td><td>-${fmt(totalDespOp)}</td></tr>
+      <tr><td>(+) Outras Receitas</td><td>${fmt(totalOutrasRec)}</td></tr>
+      <tr><td>= Resultado Líquido</td><td>${fmt(lucLiquido)}</td></tr>
+    </tbody></table>
+    <div class="dre-section">
+      <div class="dre-section-title"><span>📦 Receita</span><span>${fmt(recBruta)}</span></div>
+      <div class="dre-row"><span>Receita Bruta de Vendas</span><span style="color:var(--success)">${fmt(recBruta)}</span></div>
+      ${outrasRec.length?`<div class="dre-row"><span>Outras Receitas</span><span style="color:var(--success)">${fmt(totalOutrasRec)}</span></div>`:''}
+    </div>
+    <div class="dre-section">
+      <div class="dre-section-title"><span>🏷️ Custo das Mercadorias (CMV)</span><span>-${fmt(cmv)}</span></div>
+      <div class="dre-row total"><span>= Lucro Bruto</span><span>${fmt(lucBruto)} <small style="font-weight:400;color:var(--muted)">(margem ${margBruta}%)</small></span></div>
+    </div>
+    <div class="dre-section">
+      <div class="dre-section-title"><span>💸 Despesas Operacionais</span><span>-${fmt(totalDespOp)}</span></div>
+      ${Object.entries(despCat).map(([c,v])=>`<div class="dre-row"><span style="text-transform:capitalize">${c}</span><span style="color:var(--danger)">-${fmt(v)}</span></div>`).join('')||'<div class="dre-row" style="color:var(--muted)"><span>Nenhuma despesa no período</span><span>R$ 0,00</span></div>'}
+    </div>
+    <div class="dre-section">
+      <div class="dre-row ${isLucro?'lucro':'prejuizo'}" style="padding:14px 16px;font-size:16px">
+        <span>${isLucro?'✅ Lucro Líquido':'❌ Prejuízo Líquido'}</span>
+        <span>${fmt(Math.abs(lucLiquido))}</span>
+      </div>
+    </div>`;
+  $('dre-corpo').style.display='';
+}
+
+// ═══════════ RELATÓRIO CLIENTES ═══════════
+async function gerarRelClientes(){
+  const tipo=$('rc-tipo').value;
+  $('rc-mes-wrap').style.display=tipo==='aniversariantes'?'':'none';
+  let thead='',rows=[];
+  if(tipo==='ranking'){
+    const{data}=await sb.from('clientes').select('nome,telefone,whatsapp,total_compras,classificacao').order('total_compras',{ascending:false});
+    thead=`<tr><th>#</th><th>Cliente</th><th>Telefone</th><th>Total Compras</th><th>Classificação</th></tr>`;
+    rows=(data||[]).map((c,i)=>`<tr><td>${i+1}º</td><td>${c.nome}</td><td>${c.telefone||c.whatsapp||'—'}</td><td><strong>${fmt(c.total_compras||0)}</strong></td><td>${c.classificacao||'regular'}</td></tr>`);
+  } else if(tipo==='inadimplentes'){
+    const{data}=await sb.from('lancamentos').select('descricao,valor,data_vencimento,vendas(clientes(nome,telefone,whatsapp))').eq('tipo','receber').eq('status','pendente').lt('data_vencimento',hoje()).order('data_vencimento');
+    thead=`<tr><th>Cliente</th><th>Telefone</th><th>Descrição</th><th>Vencimento</th><th>Valor</th><th>Dias Atraso</th></tr>`;
+    rows=(data||[]).map(l=>{
+      const cli=l.vendas?.clientes;const dias=Math.floor((new Date()-new Date(l.data_vencimento))/864e5);
+      return`<tr><td>${cli?.nome||'—'}</td><td>${cli?.telefone||cli?.whatsapp||'—'}</td><td>${l.descricao}</td><td>${fmtD(l.data_vencimento)}</td><td style="color:var(--danger)"><strong>${fmt(l.valor)}</strong></td><td><span style="color:var(--danger);font-weight:600">${dias}d</span></td></tr>`});
+  } else {
+    const mes=parseInt($('rc-mes').value);
+    const{data}=await sb.from('clientes').select('nome,telefone,whatsapp,data_nascimento').not('data_nascimento','is',null).order('nome');
+    const aniv=(data||[]).filter(c=>{const d=new Date(c.data_nascimento);return d.getMonth()+1===mes});
+    thead=`<tr><th>Cliente</th><th>Telefone</th><th>Nascimento</th><th>Idade</th></tr>`;
+    rows=aniv.map(c=>{const d=new Date(c.data_nascimento);const idade=new Date().getFullYear()-d.getFullYear();
+      return`<tr><td>🎂 ${c.nome}</td><td>${c.telefone||c.whatsapp||'—'}</td><td>${fmtD(c.data_nascimento)}</td><td>${idade} anos</td></tr>`});
+    if(!rows.length)rows=[`<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--muted)">Nenhum aniversariante este mês</td></tr>`];
+  }
+  $('rc-head').innerHTML=thead;
+  $('rc-body').innerHTML=rows.join('')||`<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted)">Nenhum registro</td></tr>`;
+  $('rc-card').style.display='';
+}
+
+// ═══════════ RELATÓRIO ESTOQUE ═══════════
+async function gerarRelEstoque(){
+  const ini=$('re-ini').value||mesIni(),fim=$('re-fim').value||fimMes();
+  $('re-ini').value=ini;$('re-fim').value=fim;
+  let q=sb.from('estoque_movimentacoes').select('*,produtos(nome,codigo)').gte('created_at',ini).lte('created_at',fim+'T23:59:59').order('created_at');
+  const tipoF=$('re-tipo').value;if(tipoF)q=q.eq('tipo',tipoF);
+  const{data}=await q;
+  const prodF=$('re-prod').value.toLowerCase();
+  let rows=data||[];
+  if(prodF)rows=rows.filter(r=>r.produtos?.nome?.toLowerCase().includes(prodF)||r.produtos?.codigo?.toLowerCase().includes(prodF));
+  $('re-body').innerHTML=rows.length?rows.map(r=>`<tr>
+    <td>${fmtD(r.created_at)}</td>
+    <td><strong>${r.produtos?.nome||'—'}</strong>${r.produtos?.codigo?'<br/><small style="color:var(--muted)">#'+r.produtos.codigo+'</small>':''}</td>
+    <td><span class="badge ${r.tipo==='entrada'?'badge-success':'badge-danger'}">${r.tipo==='entrada'?'📥 Entrada':'📤 Saída'}</span></td>
+    <td style="text-align:center;font-weight:600">${r.tipo==='entrada'?'+':'-'}${r.quantidade}</td>
+    <td style="text-align:center">${r.saldo_anterior??'—'}</td>
+    <td style="text-align:center;font-weight:700">${r.saldo_posterior??'—'}</td>
+    <td style="font-size:11px;color:var(--muted)">${r.observacoes||'—'}</td>
+  </tr>`).join(''):`<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted)">Nenhuma movimentação no período</td></tr>`;
+  $('re-card').style.display='';
 }
 
 // ═══════════ INIT ═══════════
