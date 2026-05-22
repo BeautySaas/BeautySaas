@@ -1452,7 +1452,7 @@ async function doImport(){
 
 // ═══════════ ORÇAMENTOS ═══════════
 let ormItens=[];
-const BASE_URL=()=>window.location.href.replace(/\/[^/]*$/',/').replace('app_v4.html','').replace('index.html','');
+const BASE_URL=()=>{const p=window.location.pathname.replace(/[^/]*$/,'');return window.location.origin+p;};
 
 const stOrm=s=>({rascunho:'<span class="badge badge-muted">Rascunho</span>',enviado:'<span class="badge badge-warn">Enviado</span>',aprovado:'<span class="badge badge-success">Aprovado ✓</span>',recusado:'<span class="badge badge-danger">Recusado</span>'}[s]||s);
 
@@ -1612,7 +1612,7 @@ async function enviarWhatsApp(orcId){
   ]);
   if(!orc)return;
   const tel=(orc.clientes?.whatsapp||orc.clientes?.telefone||'').replace(/\D/g,'');
-  const link=`${window.location.origin}${window.location.pathname.replace('app_v4.html','').replace('index.html','')}orcamento.html?id=${orcId}`;
+  const link=`${BASE_URL()}orcamento.html?id=${orcId}`;
   const linhaItens=(itens||[]).map(i=>`• ${i.produtos?.nome} x${i.quantidade} = ${fmt(i.quantidade*i.preco_unitario)}`).join('\n');
   const msg=`Olá${orc.clientes?.nome?' '+orc.clientes.nome:''}! 😊\n\nSegue seu orçamento *#${orc.numero}*:\n\n${linhaItens}\n${orc.desconto>0?'\n🏷 Desconto: -'+fmt(orc.desconto):''}\n*Total: ${fmt(orc.valor_total)}*\n\n✅ Válido até ${fmtD(orc.validade)}\n\nClique para aprovar:\n${link}\n\nQualquer dúvida, estou à disposição! 💕`;
   const url=`https://wa.me/${tel?'55'+tel:''}?text=${encodeURIComponent(msg)}`;
@@ -1622,7 +1622,7 @@ async function enviarWhatsApp(orcId){
 }
 
 function copiarLink(orcId){
-  const link=`${window.location.origin}${window.location.pathname.replace('app_v4.html','').replace('index.html','')}orcamento.html?id=${orcId}`;
+  const link=`${BASE_URL()}orcamento.html?id=${orcId}`;
   navigator.clipboard.writeText(link).then(()=>toast('Link copiado! 🔗','success'));
 }
 
