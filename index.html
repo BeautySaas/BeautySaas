@@ -181,7 +181,16 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:14px 0}
 .dre-row.lucro{font-weight:700;font-size:15px;color:var(--success)}
 .dre-row.prejuizo{font-weight:700;font-size:15px;color:var(--danger)}
 @media print{.sidebar,.topbar,.rel-filtros,button{display:none!important}.page{display:block!important}}
-/* ── ONBOARDING ── */
+/* ── PLANOS / UPGRADE ── */
+.upgrade-overlay{position:absolute;inset:0;background:rgba(250,248,245,.92);backdrop-filter:blur(4px);z-index:100;display:flex;align-items:center;justify-content:center;border-radius:12px}
+.upgrade-box{text-align:center;padding:32px;max-width:360px}
+.upgrade-icon{font-size:48px;margin-bottom:12px}
+.upgrade-titulo{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;margin-bottom:8px}
+.upgrade-desc{font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:20px}
+.upgrade-plano{display:inline-block;background:linear-gradient(135deg,var(--rose),#c8956c);color:#fff;padding:4px 14px;border-radius:20px;font-size:12px;font-weight:600;margin-bottom:16px}
+.nav-item.bloqueado{opacity:.5;cursor:default}
+.nav-item.bloqueado::after{content:'🔒';margin-left:auto;font-size:10px}
+</style>
 .ob-dot{width:8px;height:8px;border-radius:50%;background:var(--border);transition:all .3s}
 .ob-dot.active{background:var(--rose);width:24px;border-radius:4px}
 .check-item{display:flex;align-items:center;gap:8px;padding:7px 6px;border-radius:6px;cursor:pointer;font-size:13px;transition:background .15s}
@@ -612,6 +621,64 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:14px 0}
     </div>
   </div>
 </div>
+<!-- MODAL CARTÃO OBRIGATÓRIO -->
+<div id="cartao-modal" class="modal-overlay" style="display:none;z-index:10000;background:rgba(0,0,0,.7)">
+  <div class="modal" style="max-width:480px;text-align:center">
+    <div style="padding:36px 28px">
+      <div style="font-size:52px;margin-bottom:16px">💳</div>
+      <h2 style="font-family:'Cormorant Garamond',serif;font-size:26px;margin-bottom:8px">Ative seus 14 dias grátis</h2>
+      <p style="color:var(--muted);font-size:14px;line-height:1.7;margin-bottom:24px">
+        Para garantir seu acesso, precisamos vincular um cartão.<br/>
+        <strong>Não será cobrado nada agora.</strong><br/>
+        A cobrança só acontece no 15º dia — e você pode cancelar a qualquer momento antes disso.
+      </p>
+      <div style="background:var(--cream);border-radius:10px;padding:16px;margin-bottom:20px;text-align:left">
+        <div style="font-size:13px;display:flex;flex-direction:column;gap:8px">
+          <div>✅ <strong>14 dias grátis</strong> com acesso completo</div>
+          <div>✅ <strong>Cancele quando quiser</strong> sem multa</div>
+          <div>✅ <strong>Cobrança só no 15º dia</strong></div>
+          <div>✅ <strong>Pagamento seguro</strong> via Mercado Pago</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Escolha seu plano:</div>
+        <button class="mp-btn" onclick="vincularCartao('basic')">
+          💄 Basic — R$ 29/mês <small style="opacity:.8">(14 dias grátis)</small>
+        </button>
+        <button class="mp-btn" onclick="vincularCartao('pro')" style="background:linear-gradient(135deg,#c8956c,#8b4513)">
+          ⭐ Pro — R$ 59/mês <small style="opacity:.8">(14 dias grátis) — Mais popular</small>
+        </button>
+        <button class="mp-btn" onclick="vincularCartao('premium')" style="background:linear-gradient(135deg,#7c3aed,#5b21b6)">
+          👑 Premium — R$ 99/mês <small style="opacity:.8">(14 dias grátis)</small>
+        </button>
+      </div>
+      <button class="btn btn-secondary" style="width:100%;margin-top:14px;font-size:12px;opacity:.7" onclick="adiarCartao()">
+        Lembrar depois (acesso limitado por 24h)
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL ACESSO BLOQUEADO -->
+<div id="bloqueio-modal" class="modal-overlay" style="display:none;z-index:10001;background:rgba(0,0,0,.85)">
+  <div class="modal" style="max-width:440px;text-align:center">
+    <div style="padding:36px 28px">
+      <div style="font-size:52px;margin-bottom:16px">🔒</div>
+      <h2 style="font-family:'Cormorant Garamond',serif;font-size:24px;margin-bottom:8px;color:var(--danger)">Acesso Suspenso</h2>
+      <p style="color:var(--muted);font-size:14px;line-height:1.7;margin-bottom:24px">
+        Seu trial expirou ou o pagamento não foi processado.<br/>
+        Assine para continuar usando o BeautySaaS.
+      </p>
+      <button class="mp-btn" onclick="$('bloqueio-modal').style.display='none';go('planos')" style="margin-bottom:10px">
+        💳 Assinar agora
+      </button>
+      <div style="font-size:12px;color:var(--muted)">
+        Seus dados estão salvos e seguros. ✅
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL ONBOARDING -->
 <div id="onboarding-modal" class="modal-overlay" style="display:none;z-index:9999">
   <div class="modal" style="max-width:560px;text-align:center">
@@ -900,13 +967,10 @@ async function afterLogin(u){
   const t=p.tenants;$('tenant-name').textContent=t?.nome||'Meu Negócio';
   const pl=t?.plano||'trial';const b=$('tenant-plano-badge');b.textContent=pl.charAt(0).toUpperCase()+pl.slice(1);b.className='tenant-plano plano-'+pl;
   $('tenant-avatar').textContent=(t?.nome||'B').charAt(0).toUpperCase();
-  _busy=false;showApp();go('dashboard');verificarAlertasEstoque();
-  // Onboarding e checklist
+  _busy=false;showApp();go('dashboard');verificarAlertasEstoque();atualizarNavPlanos();
   setTimeout(()=>{
+    verificarCartaoObrigatorio();
     iniciarOnboarding();
-    if(!localStorage.getItem('ob_done_'+tid)===false&&!localStorage.getItem('checklist_done_'+tid)){
-      atualizarChecklist();
-    }
     if(localStorage.getItem('ob_done_'+tid)&&!localStorage.getItem('checklist_done_'+tid)){
       mostrarChecklist();
     }
@@ -954,16 +1018,24 @@ const pgAct={
 };
 function go(pg){
   if(!tid&&pg!=='dashboard'){setTimeout(()=>go(pg),200);return}
-  _navToken++; // invalida queries em voo de páginas anteriores
+  _navToken++;
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   const el=$('pg-'+pg);if(el)el.classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.getAttribute('onclick')===`go('${pg}')`));
   $('page-title').textContent=pgTitle[pg]||pg;curPage=pg;
-  // Mostrar loading nas tabelas da página
+  // Mostrar loading nas tabelas
   const tbodies={'marcas':'tb-marcas','produtos':'tb-produtos','clientes':'tb-clientes','fornecedores':'tb-fornecedores','vendas':'tb-vendas','compras':'tb-compras','orcamentos':'tb-orcamentos'};
   if(tbodies[pg]){const tb=$(tbodies[pg]);if(tb)tb.innerHTML=`<tr><td colspan="10" style="text-align:center;padding:28px;color:var(--muted)"><span style="font-size:20px">⏳</span><br/>Carregando...</td></tr>`}
   const w=$('topbar-actions');w.innerHTML='';
   (pgAct[pg]||[]).forEach(a=>{const b=document.createElement('button');b.className='btn '+(a.p?'btn-primary':'btn-secondary');b.textContent=a.l;b.setAttribute('onclick',a.f);w.appendChild(b)});
+  // Bloquear se trial expirou e sem assinatura (exceto devs)
+  const _t=curProfile?.tenants;
+  if(!isDevUser()&&_t&&!_t.mp_subscription_id&&(!_t.plano||_t.plano==='trial')&&_t.trial_fim&&new Date(_t.trial_fim)<new Date()&&pg!=='planos'){
+    $('bloqueio-modal').style.display='flex';
+    return;
+  }
+  // Verificar acesso ao plano
+  if(!verificarAcessoPagina(pg))return;
   const ld={dashboard:loadDashboard,marcas:loadMarcas,produtos:loadProdutos,clientes:loadClientes,fornecedores:loadFornecedores,contasbancarias:loadCB,orcamentos:loadOrcamentos,devolucoes:loadDevolucoes,cupons:loadCupons,vendas:loadVendas,compras:loadCompras,estoque:loadEstoque,financeiro:()=>loadFin(finTipo),fluxo:loadFluxo,planos:loadPlanos,'rel-vendas':()=>{if(!$('rv-ini').value){$('rv-ini').value=mesIni();$('rv-fim').value=fimMes()}},'rel-dre':()=>{if(!$('dre-ini').value){$('dre-ini').value=mesIni();$('dre-fim').value=fimMes()}},'rel-clientes':()=>{},'rel-estoque':()=>{if(!$('re-ini').value){$('re-ini').value=mesIni();$('re-fim').value=fimMes()}}};
   if(ld[pg]) ld[pg]();
 }
@@ -1722,7 +1794,9 @@ function loadPlanos(){const t=curProfile?.tenants;if(t)$('plano-info').innerHTML
 async function assinarPlano(pl){toast('Em breve! Integração com gateway em desenvolvimento.','warn')}
 
 // ═══════════ IMPORT ═══════════
-function openImport(target){impTarget=target;impRows=[];$('imp-title').textContent='Importar — '+{marcas:'Marcas',produtos:'Produtos',clientes:'Clientes'}[target];$('imp-file').value='';$('imp-preview').innerHTML='';$('imp-cols').innerHTML='';$('imp-btn').style.display='none';$('import-modal').style.display='flex'}
+function openImport(target){
+  if(!temAcesso('pro')){toast('Importação disponível a partir do plano Pro 💎','warn');go('planos');return}
+  impTarget=target;impRows=[];$('imp-title').textContent='Importar — '+{marcas:'Marcas',produtos:'Produtos',clientes:'Clientes'}[target];$('imp-file').value='';$('imp-preview').innerHTML='';$('imp-cols').innerHTML='';$('imp-btn').style.display='none';$('import-modal').style.display='flex'}
 function handleImport(ev){
   const file=ev.target.files[0];if(!file)return;const reader=new FileReader();
   reader.onload=e=>{const wb=XLSX.read(e.target.result,{type:'array'});const ws=wb.Sheets[wb.SheetNames[0]];const json=XLSX.utils.sheet_to_json(ws,{defval:''});if(!json.length){toast('Planilha vazia','warn');return}
@@ -1984,6 +2058,7 @@ async function loadOrcamentos(){
 }
 
 async function openOrcamentoModal(id){
+  if(!temAcesso('pro')){toast('Orçamentos disponíveis a partir do plano Pro 💎','warn');go('planos');return}
   ormItens=[];selProd=null;
   $('orm-title').textContent=id?'Editar Orçamento':'Novo Orçamento';
   $('orm-data').value=hoje();
@@ -2493,9 +2568,9 @@ function dispensarChecklist(){
 // IMPORTANTE: Substitua pelos seus links de pagamento reais do Mercado Pago
 // Crie em: mercadopago.com.br → Seu negócio → Links de pagamento
 const MP_LINKS={
-  basic:'https://mpago.la/SEU_LINK_BASIC',    // ← Substitua
-  pro:'https://mpago.la/SEU_LINK_PRO',        // ← Substitua
-  premium:'https://mpago.la/SEU_LINK_PREMIUM' // ← Substitua
+  basic:'https://www.mercadopago.com.br/subscriptions/checkout?preapproval_plan_id=2c033d52bc9742dab3ca75dea10a4c62',
+  pro:'https://www.mercadopago.com.br/subscriptions/checkout?preapproval_plan_id=6413f5f86726479894cc0ec37d39508d',
+  premium:'https://www.mercadopago.com.br/subscriptions/checkout?preapproval_plan_id=d8579a94cbc54ef6aa1941842a8f88d8'
 };
 
 async function assinarPlano(plano,centavos){
@@ -2529,14 +2604,201 @@ function loadPlanos(){
   if(!t)return;
   const pl=t.plano||'trial';
   const nomes={trial:'Trial (14 dias)',basic:'Basic',pro:'Pro',premium:'Premium'};
+  const expirado=pl==='trial'&&t.trial_fim&&new Date(t.trial_fim)<new Date();
   $('plano-atual-info').style.display='flex';
-  $('plano-atual-nome').textContent=nomes[pl]||pl;
+  $('plano-atual-nome').textContent=expirado?'Trial Expirado':nomes[pl]||pl;
+  $('plano-atual-nome').style.color=expirado?'var(--danger)':'';
   $('plano-atual-status').innerHTML=t.trial_fim?`Válido até ${fmtD(t.trial_fim)}`:'Ativo';
   if(t.plano==='trial'&&t.trial_fim){
     const dias=Math.ceil((new Date(t.trial_fim)-new Date())/864e5);
     if(dias>=0)$('plano-info').textContent=`${dias} dias restantes no trial.`;
-    else $('plano-info').innerHTML='<span style="color:var(--danger)">Trial expirado. Assine para continuar.</span>';
+    else $('plano-info').innerHTML='<span style="color:var(--danger)">Trial expirado. Assine para continuar com acesso completo.</span>';
   }
+  // Atualizar badge no sidebar
+  const badge=$('tenant-plano-badge');
+  if(badge){badge.textContent=(expirado?'Expirado':pl).charAt(0).toUpperCase()+(expirado?'xirado':pl.slice(1));badge.className='tenant-plano plano-'+(expirado?'trial':pl)}
+}
+
+// ═══════════ VINCULAÇÃO OBRIGATÓRIA DO CARTÃO ═══════════
+
+// Emails que nunca são bloqueados (dev/teste)
+const EMAILS_DEV=['pwaitman2022@gmail.com']; // ← adicione seus emails de teste aqui
+
+function isDevUser(){
+  return EMAILS_DEV.includes(curUser?.email||'');
+}
+
+async function verificarCartaoObrigatorio(){
+  // Dev nunca é bloqueado
+  if(isDevUser())return;
+
+  const t=curProfile?.tenants;
+  if(!t)return;
+
+  // Se já tem assinatura MP ativa → ok
+  if(t.mp_subscription_id)return;
+
+  // Se tem plano pago → ok
+  if(t.plano&&t.plano!=='trial')return;
+
+  // Se trial expirou → mostrar bloqueio total
+  if(t.trial_fim&&new Date(t.trial_fim)<new Date()){
+    $('bloqueio-modal').style.display='flex';
+    return;
+  }
+
+  // Novo usuário sem cartão → verificar se já adiou
+  const adiado=localStorage.getItem('cartao_adiado_'+tid);
+  if(adiado){
+    const adiouEm=new Date(adiado);
+    const agora=new Date();
+    const horas=(agora-adiouEm)/36e5;
+    if(horas<24)return; // ainda dentro das 24h de graça
+  }
+
+  // Sem cartão e sem adiamento → mostrar modal
+  $('cartao-modal').style.display='flex';
+}
+
+function vincularCartao(plano){
+  if(MP_LINKS[plano].includes('SEU_LINK')){
+    toast('Configure os links do Mercado Pago no código (MP_LINKS)','warn');
+    return;
+  }
+  // Salvar plano escolhido e redirecionar para MP
+  sb.from('tenants').update({plano_pendente:plano}).eq('id',tid);
+  const link=MP_LINKS[plano]+'?external_reference='+tid+'&prefill_email='+encodeURIComponent(curUser?.email||'');
+  window.open(link,'_blank');
+  $('cartao-modal').style.display='none';
+  toast('Você foi redirecionado para o Mercado Pago. Após vincular o cartão, volte aqui.','success');
+}
+
+function adiarCartao(){
+  // Permite usar por mais 24h sem cartão
+  localStorage.setItem('cartao_adiado_'+tid, new Date().toISOString());
+  $('cartao-modal').style.display='none';
+  toast('Você tem 24h para vincular seu cartão e ativar os 14 dias grátis.','warn');
+}
+
+// ═══════════ SISTEMA DE PLANOS ═══════════
+// Mapa de funcionalidades por plano mínimo necessário
+const PLANO_NIVEL={trial:0,basic:1,pro:2,premium:3};
+const PLANO_NOME={trial:'Trial',basic:'Basic',pro:'Pro',premium:'Premium'};
+const PLANO_PRECO={basic:'R$29/mês',pro:'R$59/mês',premium:'R$99/mês'};
+
+// Quais páginas requerem qual plano mínimo
+const PLANO_PAGINAS={
+  // trial e basic: acesso livre
+  dashboard:     'trial',
+  marcas:        'trial',
+  produtos:      'trial',
+  clientes:      'trial',
+  fornecedores:  'trial',
+  contasbancarias:'trial',
+  vendas:        'trial',
+  compras:       'trial',
+  estoque:       'trial',
+  financeiro:    'trial',
+  fluxo:         'trial',
+  planos:        'trial',
+  // pro: funcionalidades avançadas
+  orcamentos:    'pro',
+  cupons:        'pro',
+  devolucoes:    'pro',
+  'rel-vendas':  'pro',
+  'rel-dre':     'pro',
+  'rel-clientes':'pro',
+  'rel-estoque': 'pro',
+  // premium
+};
+
+// Funcionalidades bloqueadas por plano (botões/ações)
+const PLANO_ACOES={
+  openImport:    'pro',   // importação Excel
+  openOrcamentoModal: 'pro',
+  openCupom:     'pro',
+  openDevolucao: 'pro',
+  gerarRelVendas:'pro',
+  gerarDRE:      'pro',
+  gerarRelClientes:'pro',
+  gerarRelEstoque:'pro',
+};
+
+function getPlanoAtual(){
+  if(isDevUser())return'premium'; // dev sempre tem acesso total
+  const t=curProfile?.tenants;
+  if(!t)return'trial';
+  if(t.plano==='trial'||!t.plano){
+    if(t.trial_fim&&new Date(t.trial_fim)<new Date()) return'expired';
+    return'trial';
+  }
+  return t.plano;
+}
+
+function temAcesso(planoMinimo){
+  const atual=getPlanoAtual();
+  if(atual==='expired') return PLANO_NIVEL[planoMinimo]<=PLANO_NIVEL['basic'];
+  return(PLANO_NIVEL[atual]||0)>=(PLANO_NIVEL[planoMinimo]||0);
+}
+
+function mostrarUpgrade(pg,planoNecessario){
+  // Mostrar overlay de upgrade na página
+  const el=$('pg-'+pg);if(!el)return;
+  // Remover overlay anterior se existir
+  el.querySelectorAll('.upgrade-overlay').forEach(e=>e.remove());
+  // Garantir position relative
+  el.style.position='relative';
+  const plano=planoNecessario||'pro';
+  const overlay=document.createElement('div');
+  overlay.className='upgrade-overlay';
+  overlay.innerHTML=`<div class="upgrade-box">
+    <div class="upgrade-icon">🔒</div>
+    <div class="upgrade-plano">Plano ${PLANO_NOME[plano]} ou superior</div>
+    <div class="upgrade-titulo">Funcionalidade Premium</div>
+    <div class="upgrade-desc">Esta funcionalidade está disponível a partir do plano <strong>${PLANO_NOME[plano]}</strong> (${PLANO_PRECO[plano]}).<br/>Faça upgrade para desbloquear.</div>
+    <button class="btn btn-primary" style="width:100%;margin-bottom:8px" onclick="go('planos')">👑 Ver Planos</button>
+    <button class="btn btn-secondary" style="width:100%" onclick="go('dashboard')">Voltar ao início</button>
+  </div>`;
+  el.appendChild(overlay);
+}
+
+function verificarAcessoPagina(pg){
+  const planoNec=PLANO_PAGINAS[pg]||'trial';
+  if(!temAcesso(planoNec)){
+    mostrarUpgrade(pg,planoNec);
+    return false;
+  }
+  // Trial expirado — mostrar banner de urgência
+  if(getPlanoAtual()==='expired'){
+    const el=$('pg-'+pg);
+    if(el&&!el.querySelector('.trial-expirado-banner')){
+      const banner=document.createElement('div');
+      banner.className='trial-expirado-banner';
+      banner.style.cssText='background:#fee2e2;border:1px solid var(--danger);border-radius:8px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;font-size:13px';
+      banner.innerHTML=`<span>⚠️ <strong>Trial expirado.</strong> Assine para continuar com acesso completo.</span><button class="btn btn-primary btn-sm" onclick="go('planos')">Assinar agora</button>`;
+      el.insertAdjacentElement('afterbegin',banner);
+    }
+  }
+  return true;
+}
+
+// Atualizar nav com cadeados para itens bloqueados
+function atualizarNavPlanos(){
+  const plano=getPlanoAtual();
+  document.querySelectorAll('.nav-item').forEach(nav=>{
+    const onclick=nav.getAttribute('onclick')||'';
+    const match=onclick.match(/go\('([^']+)'\)/);
+    if(!match)return;
+    const pg=match[1];
+    const planoNec=PLANO_PAGINAS[pg]||'trial';
+    const bloqueado=!temAcesso(planoNec);
+    if(bloqueado){
+      nav.classList.add('bloqueado');
+      nav.setAttribute('onclick',`go('${pg}')`); // mantém clicável para mostrar upgrade
+    } else {
+      nav.classList.remove('bloqueado');
+    }
+  });
 }
 
 // ═══════════ INIT ═══════════
