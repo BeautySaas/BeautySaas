@@ -225,6 +225,14 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:14px 0}
       <div class="auth-field"><label>Nome do negócio</label><input type="text" id="reg-negocio" placeholder="Maria Cosméticos"/></div>
       <div class="auth-field"><label>Email</label><input type="email" id="reg-email" placeholder="seu@email.com"/></div>
       <div class="auth-field"><label>Senha (mín. 6 caracteres)</label><input type="password" id="reg-pass" placeholder="••••••••"/></div>
+      <div style="display:flex;align-items:flex-start;gap:8px;margin:10px 0;font-size:12px;color:#666;text-align:left">
+        <input type="checkbox" id="reg-termos" style="margin-top:2px;accent-color:#c8956c;flex-shrink:0"/>
+        <label for="reg-termos">Li e aceito os <a href="termos.html" target="_blank" style="color:#c8956c">Termos de Uso</a>, a <a href="termos.html#privacidade" target="_blank" style="color:#c8956c">Política de Privacidade</a> e a <a href="termos.html" target="_blank" style="color:#c8956c">Política de Cookies</a> do BeautySaaS.</label>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:14px;font-size:12px;color:#666;text-align:left">
+        <input type="checkbox" id="reg-lgpd" style="margin-top:2px;accent-color:#c8956c;flex-shrink:0"/>
+        <label for="reg-lgpd">Estou ciente do tratamento dos meus dados pessoais conforme a <a href="termos.html" target="_blank" style="color:#c8956c">LGPD</a> e autorizo o BeautySaaS a processar meus dados para prestação do serviço.</label>
+      </div>
       <div id="reg-err" style="display:none" class="auth-err"></div>
       <button class="auth-btn" id="reg-btn" onclick="doRegister()">Criar Conta Grátis</button>
       <div class="auth-msg">14 dias grátis, sem cartão</div>
@@ -273,7 +281,15 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:14px 0}
       <div class="nav-section">Conta</div>
       <a class="nav-item" onclick="go('planos')"><span class="icon">👑</span>Meu Plano</a>
     </nav>
-    <div class="sidebar-footer"><button class="logout-btn" onclick="doLogout()">⎋ Sair</button></div>
+    <div class="sidebar-footer">
+      <button class="logout-btn" onclick="doLogout()">⎋ Sair</button>
+      <div style="margin-top:10px;font-size:10px;color:rgba(255,255,255,.3);line-height:1.6;text-align:center">
+        <a href="termos.html" target="_blank" style="color:rgba(255,255,255,.4);text-decoration:none">Termos de Uso</a> ·
+        <a href="termos.html" target="_blank" style="color:rgba(255,255,255,.4);text-decoration:none">Privacidade</a> ·
+        <a href="termos.html" target="_blank" style="color:rgba(255,255,255,.4);text-decoration:none">LGPD</a><br/>
+        © 2026 BeautySaaS
+      </div>
+    </div>
   </div>
   <div id="main">
     <div id="topbar"><div id="page-title">Dashboard</div><div class="topbar-actions" id="topbar-actions"></div></div>
@@ -968,13 +984,16 @@ async function afterLogin(u){
   const pl=t?.plano||'trial';const b=$('tenant-plano-badge');b.textContent=pl.charAt(0).toUpperCase()+pl.slice(1);b.className='tenant-plano plano-'+pl;
   $('tenant-avatar').textContent=(t?.nome||'B').charAt(0).toUpperCase();
   _busy=false;showApp();go('dashboard');verificarAlertasEstoque();atualizarNavPlanos();
-  setTimeout(()=>{
-    verificarCartaoObrigatorio();
+  setTimeout(async()=>{
+    // Recarregar perfil fresco do banco para garantir dados atualizados
+    const{data:freshProfile}=await sb.from('profiles').select('*,tenants(*)').eq('id',curUser.id).single();
+    if(freshProfile){curProfile=freshProfile;}
+    await verificarCartaoObrigatorio();
     iniciarOnboarding();
     if(localStorage.getItem('ob_done_'+tid)&&!localStorage.getItem('checklist_done_'+tid)){
       mostrarChecklist();
     }
-  },800);
+  },1200);
 }
 function showApp(){$('auth-screen').style.display='none';$('app').classList.add('visible')}
 function showAuth(){$('auth-screen').style.display='flex';$('app').classList.remove('visible');tid=null}
@@ -992,6 +1011,8 @@ async function doRegister(){
   const b=$('reg-btn'),er=$('reg-err');er.style.display='none';
   if(!n||!e||!p){er.textContent='Preencha todos os campos';er.className='auth-err';er.style.display='block';return}
   if(p.length<6){er.textContent='Senha mín. 6 caracteres';er.className='auth-err';er.style.display='block';return}
+  if(!$('reg-termos').checked){er.textContent='Você precisa aceitar os Termos de Uso para continuar';er.className='auth-err';er.style.display='block';return}
+  if(!$('reg-lgpd').checked){er.textContent='Você precisa aceitar o tratamento de dados (LGPD) para continuar';er.className='auth-err';er.style.display='block';return}
   b.textContent='Criando...';b.disabled=true;
   const{data,error}=await sb.auth.signUp({email:e,password:p,options:{data:{nome:n,negocio:ng||n+' Cosméticos'}}});
   if(error){er.textContent=trErr(error.message);er.className='auth-err';er.style.display='block';b.textContent='Criar Conta Grátis';b.disabled=false;return}
@@ -2647,16 +2668,14 @@ async function verificarCartaoObrigatorio(){
     return;
   }
 
-  // Novo usuário sem cartão → verificar se já adiou
+  // Verificar se já adiou nas últimas 24h
   const adiado=localStorage.getItem('cartao_adiado_'+tid);
   if(adiado){
-    const adiouEm=new Date(adiado);
-    const agora=new Date();
-    const horas=(agora-adiouEm)/36e5;
+    const horas=(new Date()-new Date(adiado))/36e5;
     if(horas<24)return; // ainda dentro das 24h de graça
   }
 
-  // Sem cartão e sem adiamento → mostrar modal
+  // Novo usuário sem cartão e sem adiamento → mostrar modal SEMPRE
   $('cartao-modal').style.display='flex';
 }
 
