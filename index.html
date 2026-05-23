@@ -2627,7 +2627,7 @@ async function assinarPlano(plano,centavos){
   // Salvar intenção no Supabase para rastrear
   await sb.from('tenants').update({plano_pendente:plano}).eq('id',tid);
   // Abrir link do Mercado Pago
-  window.open(MP_LINKS[plano]+'?external_reference='+tid,'_blank');
+  window.open(MP_LINKS[plano]+'&external_reference='+tid,'_blank');
   toast('Redirecionando para o Mercado Pago...','success');
   $('plano-info').innerHTML='Após o pagamento, seu plano será ativado automaticamente em até 5 minutos.';
 }
@@ -2698,7 +2698,7 @@ function vincularCartao(plano){
   }
   // Salvar plano escolhido e redirecionar para MP
   sb.from('tenants').update({plano_pendente:plano}).eq('id',tid);
-  const link=MP_LINKS[plano]+'?external_reference='+tid+'&prefill_email='+encodeURIComponent(curUser?.email||'');
+  const link=MP_LINKS[plano]+'&external_reference='+tid+'&prefill_email='+encodeURIComponent(curUser?.email||'');
   window.open(link,'_blank');
   $('cartao-modal').style.display='none';
   toast('Você foi redirecionado para o Mercado Pago. Após vincular o cartão, volte aqui.','success');
