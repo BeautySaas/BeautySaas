@@ -2696,18 +2696,23 @@ function vincularCartao(plano){
     toast('Configure os links do Mercado Pago no código (MP_LINKS)','warn');
     return;
   }
-  // Salvar plano escolhido e redirecionar para MP
+  // Fechar modal PRIMEIRO antes de abrir nova aba
+  $('cartao-modal').style.display='none';
+  document.body.style.overflow=''; // restaurar scroll
+  // Salvar plano escolhido
   sb.from('tenants').update({plano_pendente:plano}).eq('id',tid);
   const link=MP_LINKS[plano]+'&external_reference='+tid+'&prefill_email='+encodeURIComponent(curUser?.email||'');
-  window.open(link,'_blank');
-  $('cartao-modal').style.display='none';
-  toast('Você foi redirecionado para o Mercado Pago. Após vincular o cartão, volte aqui.','success');
+  // Pequeno delay para garantir que o modal fechou antes de abrir nova aba
+  setTimeout(()=>{
+    window.open(link,'_blank');
+    toast('Redirecionando para o Mercado Pago... Após assinar, volte aqui.','success');
+  },200);
 }
 
 function adiarCartao(){
-  // Permite usar por mais 24h sem cartão
   localStorage.setItem('cartao_adiado_'+tid, new Date().toISOString());
   $('cartao-modal').style.display='none';
+  document.body.style.overflow='';
   toast('Você tem 24h para vincular seu cartão e ativar os 14 dias grátis.','warn');
 }
 
