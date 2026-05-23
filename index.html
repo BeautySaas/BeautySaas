@@ -2626,8 +2626,11 @@ async function assinarPlano(plano,centavos){
 
   // Salvar intenção no Supabase para rastrear
   await sb.from('tenants').update({plano_pendente:plano}).eq('id',tid);
-  // Abrir link do Mercado Pago
-  window.open(MP_LINKS[plano]+'&external_reference='+tid,'_blank');
+  // Usar <a> para evitar bloqueio de popup
+  const link=MP_LINKS[plano]+'&external_reference='+tid;
+  const a=document.createElement('a');
+  a.href=link;a.target='_blank';a.rel='noopener noreferrer';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
   toast('Redirecionando para o Mercado Pago...','success');
   $('plano-info').innerHTML='Após o pagamento, seu plano será ativado automaticamente em até 5 minutos.';
 }
@@ -2696,17 +2699,19 @@ function vincularCartao(plano){
     toast('Configure os links do Mercado Pago no código (MP_LINKS)','warn');
     return;
   }
-  // Fechar modal PRIMEIRO antes de abrir nova aba
   $('cartao-modal').style.display='none';
-  document.body.style.overflow=''; // restaurar scroll
-  // Salvar plano escolhido
+  document.body.style.overflow='';
   sb.from('tenants').update({plano_pendente:plano}).eq('id',tid);
   const link=MP_LINKS[plano]+'&external_reference='+tid+'&prefill_email='+encodeURIComponent(curUser?.email||'');
-  // Pequeno delay para garantir que o modal fechou antes de abrir nova aba
-  setTimeout(()=>{
-    window.open(link,'_blank');
-    toast('Redirecionando para o Mercado Pago... Após assinar, volte aqui.','success');
-  },200);
+  // Usar <a> com target="_blank" para evitar bloqueio de popup
+  const a=document.createElement('a');
+  a.href=link;
+  a.target='_blank';
+  a.rel='noopener noreferrer';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  toast('Redirecionando para o Mercado Pago... Após assinar, volte aqui.','success');
 }
 
 function adiarCartao(){
