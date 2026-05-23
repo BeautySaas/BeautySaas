@@ -23,7 +23,6 @@ td{padding:10px 8px;border-bottom:1px solid #f5f5f5}
 .total-row{display:flex;justify-content:space-between;padding:12px 0;font-size:15px;font-weight:700;border-top:2px solid #eee;margin-top:4px}
 .total-val{color:#c8956c;font-size:18px}
 .obs{background:#faf8f5;border-radius:8px;padding:12px;font-size:13px;color:#666;margin-bottom:20px}
-.obs strong{color:#333}
 .validade{text-align:center;font-size:12px;color:#888;margin-bottom:20px}
 .validade.vencido{color:#e53e3e;font-weight:600}
 .btn{display:block;width:100%;padding:14px;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .2s}
@@ -69,31 +68,36 @@ const orcId=params.get('id');
 
 async function load(){
   if(!orcId){showErro('Link inválido.');return}
-  const[{data:orc,error},{data:itens}]=await Promise.all([
-    sb.from('orcamentos').select('*,clientes(nome,telefone),tenants(nome)').eq('id',orcId).single(),
-    sb.from('orcamentos_itens').select('*,produtos(nome)').eq('orcamento_id',orcId)
-  ]);
-  if(error||!orc){showErro('Orçamento não encontrado.');return}
+
+  // Usa RPC — não acessa tabela diretamente, seguro para qualquer usuário
+  const{data,error}=await sb.rpc('get_orcamento_publico',{orc_id:orcId});
+  if(error||!data){showErro('Orçamento não encontrado.');return}
+
+  const orc=data.orcamento;
+  const cliente=data.cliente;
+  const itens=data.itens||[];
+
+  if(!orc){showErro('Orçamento não encontrado.');return}
+
   const vencido=orc.validade&&new Date(orc.validade)<new Date();
   const aprovado=orc.status==='aprovado';
   const recusado=orc.status==='recusado';
-  const body=document.getElementById('body');
 
   let statusBox='';
   if(aprovado) statusBox=`<div class="status-box status-aprovado"><h3>✅ Orçamento Aprovado!</h3><p>Obrigada! Entraremos em contato em breve.</p></div>`;
   else if(recusado) statusBox=`<div class="status-box status-recusado"><h3>❌ Orçamento Recusado</h3><p>Se mudar de ideia, entre em contato conosco.</p></div>`;
 
-  const linhaItens=(itens||[]).map(i=>`<tr>
-    <td>${i.produtos?.nome||'?'}</td>
+  const linhaItens=itens.map(i=>`<tr>
+    <td>${i.produto_nome||'?'}</td>
     <td style="text-align:center">${i.quantidade}</td>
     <td style="text-align:right">${fmt(i.preco_unitario)}</td>
     <td style="text-align:right;font-weight:600">${fmt(i.quantidade*i.preco_unitario)}</td>
   </tr>`).join('');
 
-  body.innerHTML=`
+  document.getElementById('body').innerHTML=`
     ${statusBox}
     <div class="info-row">
-      <div><div class="info-label">Para</div><div class="info-val">${orc.clientes?.nome||'Consumidor'}</div></div>
+      <div><div class="info-label">Para</div><div class="info-val">${cliente?.nome||'Consumidor'}</div></div>
       <div style="text-align:right"><div class="info-label">Orçamento</div><div class="info-val">#${orc.numero}</div></div>
     </div>
     <div class="info-row">
@@ -116,19 +120,31 @@ async function load(){
 }
 
 async function aprovar(){
-  const[b1,b2]=[document.getElementById('btn-apr'),document.getElementById('btn-rec')];
+  const b1=document.getElementById('btn-apr'),b2=document.getElementById('btn-rec');
   b1.disabled=b2.disabled=true;b1.textContent='Confirmando...';
-  const{error}=await sb.from('orcamentos').update({status:'aprovado'}).eq('id',orcId);
-  if(error){b1.textContent='Erro — tente novamente';b1.disabled=b2.disabled=false;return}
+
+  // Usa RPC — não precisa de policy pública na tabela
+  const{data,error}=await sb.rpc('update_orcamento_status',{orc_id:orcId,novo_status:'aprovado'});
+  if(error||!data){
+    console.error('Erro ao aprovar:',error);
+    b1.textContent='Erro — tente novamente';
+    b1.disabled=b2.disabled=false;
+    alert('Não foi possível confirmar: '+(error?.message||'Tente novamente.'));
+    return;
+  }
   b1.closest('div').insertAdjacentHTML('beforebegin',`<div class="status-box status-aprovado"><h3>✅ Pedido Confirmado!</h3><p>Obrigada! Entraremos em contato em breve. 💕</p></div>`);
   b1.parentElement.remove();
 }
+
 async function recusar(){
   if(!confirm('Deseja recusar este orçamento?'))return;
-  await sb.from('orcamentos').update({status:'recusado'}).eq('id',orcId);
+  await sb.rpc('update_orcamento_status',{orc_id:orcId,novo_status:'recusado'});
   location.reload();
 }
-function showErro(msg){document.getElementById('body').innerHTML=`<div style="text-align:center;padding:30px;color:#888"><div style="font-size:40px;margin-bottom:12px">😕</div><p>${msg}</p></div>`}
+
+function showErro(msg){
+  document.getElementById('body').innerHTML=`<div style="text-align:center;padding:30px;color:#888"><div style="font-size:40px;margin-bottom:12px">😕</div><p>${msg}</p></div>`;
+}
 
 load();
 </script>
