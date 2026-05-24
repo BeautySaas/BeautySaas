@@ -1845,7 +1845,7 @@ function openImport(target){
 function downloadModelo(target){
   const modelos={
     marcas:{cols:['nome','descricao','site'],ex:[['Natura','Cosméticos brasileiros','natura.com.br'],['Avon','Beleza e cuidados','avon.com.br']]},
-    produtos:{cols:['nome','codigo','preco_custo','preco_venda','estoque_atual','categoria'],ex:[['Creme Hidratante','CREM001',15.00,29.90,10,'Skincare'],['Batom Rosa','BAT001',8.00,18.90,20,'Maquiagem']]},
+    produtos:{cols:['nome','codigo','marca','preco_custo','preco_venda','estoque_atual','categoria'],ex:[['Creme Hidratante','CREM001','Natura',15.00,29.90,10,'Skincare'],['Batom Rosa','BAT001','Avon',8.00,18.90,20,'Maquiagem']]},
     clientes:{cols:['nome','telefone','email','cidade','estado'],ex:[['Maria Silva','11999999999','maria@email.com','São Paulo','SP'],['Ana Costa','21988888888','ana@email.com','Rio de Janeiro','RJ']]}
   };
   const m=modelos[target];
@@ -1862,21 +1862,52 @@ function handleImport(ev){
   reader.onload=e=>{const wb=XLSX.read(e.target.result,{type:'array'});const ws=wb.Sheets[wb.SheetNames[0]];const json=XLSX.utils.sheet_to_json(ws,{defval:''});if(!json.length){toast('Planilha vazia','warn');return}
   impRows=json;const cols=Object.keys(json[0]);
   $('imp-preview').innerHTML=`<div style="background:var(--cream);border-radius:8px;padding:10px;font-size:13px"><strong>${json.length} linhas</strong> · Colunas: ${cols.join(', ')}</div>`;
-  const maps={marcas:{nome:'nome'},produtos:{nome:'nome',codigo:'codigo',preco_custo:'custo',preco_venda:'venda',estoque_atual:'estoque'},clientes:{nome:'nome',telefone:'telefone',email:'email',cidade:'cidade'}};
+  const maps={marcas:{nome:'nome'},produtos:{nome:'nome',codigo:'codigo',marca:'marca',preco_custo:'custo',preco_venda:'venda',estoque_atual:'estoque',categoria:'categoria'},clientes:{nome:'nome',telefone:'telefone',email:'email',cidade:'cidade'}};
   const fields=maps[impTarget]||{nome:'nome'};
   $('imp-cols').innerHTML='<div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--muted)">MAPEAMENTO</div>'+Object.entries(fields).map(([k,h])=>`<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><label style="width:100px;font-size:12px">${k}</label><select id="imp-col-${k}" style="flex:1;font-size:13px"><option value="">— Ignorar —</option>${cols.map(c=>`<option value="${c}" ${c.toLowerCase().includes(h)?'selected':''}>${c}</option>`).join('')}</select></div>`).join('');
   $('imp-btn').style.display=''};reader.readAsArrayBuffer(file);
 }
 async function doImport(){
-  if(!impRows.length)return;const maps={marcas:['nome'],produtos:['nome','codigo','preco_custo','preco_venda','estoque_atual'],clientes:['nome','telefone','email','cidade']};
+  if(!impRows.length)return;
+  const maps={
+    marcas:['nome'],
+    produtos:['nome','codigo','marca','preco_custo','preco_venda','estoque_atual','categoria'],
+    clientes:['nome','telefone','email','cidade']
+  };
   const fields=maps[impTarget]||['nome'];const colMap={};
   fields.forEach(f=>{const sel=$('imp-col-'+f);if(sel)colMap[f]=sel.value});
   if(!colMap.nome){toast('Mapeie Nome','error');return}
+
+  // Pré-carregar marcas para lookup por nome (só para produtos)
+  let marcasMap={};
+  if(impTarget==='produtos'){
+    const{data:ms}=await sb.from('marcas').select('id,nome');
+    (ms||[]).forEach(m=>marcasMap[m.nome.toLowerCase().trim()]=m.id);
+  }
+
   let ok=0,err=0;
-  for(const row of impRows){const obj={tenant_id:tid};Object.entries(colMap).forEach(([k,col])=>{if(col&&row[col]!==undefined)obj[k]=row[col]});if(!obj.nome)continue;
-  ['preco_custo','preco_venda','estoque_atual'].forEach(k=>{if(obj[k])obj[k]=parseFloat(String(obj[k]).replace(',','.'))||0});
-  const{error}=await sb.from(impTarget).insert(obj);if(error)err++;else ok++}
-  toast(`Importados: ${ok} · Erros: ${err}`,err?'warn':'success');$('import-modal').style.display='none';go(curPage);
+  for(const row of impRows){
+    const obj={tenant_id:tid};
+    Object.entries(colMap).forEach(([k,col])=>{
+      if(col&&row[col]!==undefined&&k!=='marca') obj[k]=row[col]
+    });
+    if(!obj.nome)continue;
+    // Converter numéricos
+    ['preco_custo','preco_venda','estoque_atual'].forEach(k=>{
+      if(obj[k])obj[k]=parseFloat(String(obj[k]).replace(',','.'))||0
+    });
+    // Resolver marca pelo nome
+    if(impTarget==='produtos'&&colMap.marca&&row[colMap.marca]){
+      const nomeMarca=String(row[colMap.marca]).toLowerCase().trim();
+      const marcaId=marcasMap[nomeMarca];
+      if(marcaId) obj.marca_id=marcaId;
+      else toast(`Marca "${row[colMap.marca]}" não encontrada — produto "${obj.nome}" importado sem marca`,'warn');
+    }
+    const{error}=await sb.from(impTarget).insert(obj);
+    if(error){console.error('Import err:',error);err++}else ok++;
+  }
+  toast(`Importados: ${ok} · Erros: ${err}`,err?'warn':'success');
+  $('import-modal').style.display='none';go(curPage);
 }
 
 // ═══════════ HISTÓRICO DO CLIENTE ═══════════
