@@ -1131,10 +1131,7 @@ async function loadDashboard(){
 
 // ═══════════ MARCAS ═══════════
 async function loadMarcas(){
-  const tok=_navToken;
   const{data,error}=await sb.from('marcas').select('*').order('nome');
-  if(tok!==_navToken)return;
-  console.log('loadMarcas:',data?.length||0,'rows',error||'ok');
   if(error){toast('Erro marcas: '+error.message,'error');return}
   const{data:pr}=await sb.from('produtos').select('marca_id');
   const cnt={};(pr||[]).forEach(p=>{if(p.marca_id)cnt[p.marca_id]=(cnt[p.marca_id]||0)+1});
@@ -1172,13 +1169,10 @@ async function openProduto(id){
 
 // ═══════════ CLIENTES ═══════════
 async function loadClientes(){
-  const tok=_navToken;
   const[{data,error},lancRes]=await Promise.all([
     sb.from('clientes').select('*').order('nome'),
     sb.from('lancamentos').select('valor,status,referencia_id,referencia_tipo').eq('tipo','receber').eq('status','pendente').eq('referencia_tipo','venda')
   ]);
-  if(tok!==_navToken)return;
-  console.log('loadClientes:',data?.length||0,'rows',error||'ok');
   if(error){toast('Erro clientes: '+error.message,'error');return}
   // Calcular saldo devedor por cliente via lançamentos de vendas pendentes
   const vendaIds=[...new Set((lancRes.data||[]).map(l=>l.referencia_id))];
@@ -1218,10 +1212,7 @@ function openCliente(id){
 
 // ═══════════ FORNECEDORES ═══════════
 async function loadFornecedores(){
-  const tok=_navToken;
   const{data,error}=await sb.from('fornecedores').select('*').order('nome');
-  if(tok!==_navToken)return;
-  console.log('loadFornecedores:',data?.length||0,'rows',error||'ok');
   if(error){toast('Erro fornecedores: '+error.message,'error');return}
   $('tb-fornecedores').innerHTML=data?.length?data.map(f=>`<tr><td><strong>${f.nome}</strong></td><td>${f.cnpj||'—'}</td><td>${f.contato||'—'}</td><td>${f.telefone||'—'}</td><td>${f.prazo_entrega_dias?f.prazo_entrega_dias+' dias':'—'}</td><td><button class="btn btn-sm btn-secondary" onclick="openFornecedor('${f.id}')">✏️</button> <button class="btn btn-sm btn-danger" onclick="del('fornecedores','${f.id}')">🗑</button></td></tr>`).join(''):emptyR(6,'Nenhum fornecedor');
 }
@@ -1824,12 +1815,48 @@ async function recalcTodosStatus(tipo){
 
 // ═══════════ PLANOS ═══════════
 function loadPlanos(){const t=curProfile?.tenants;if(t)$('plano-info').innerHTML=`Plano atual: <strong>${(t.plano||'trial').toUpperCase()}</strong>${t.trial_fim?' · Trial até '+fmtD(t.trial_fim):''}`}
-async function assinarPlano(pl){toast('Em breve! Integração com gateway em desenvolvimento.','warn')}
-
 // ═══════════ IMPORT ═══════════
 function openImport(target){
   if(!temAcesso('pro')){toast('Importação disponível a partir do plano Pro 💎','warn');go('planos');return}
-  impTarget=target;impRows=[];$('imp-title').textContent='Importar — '+{marcas:'Marcas',produtos:'Produtos',clientes:'Clientes'}[target];$('imp-file').value='';$('imp-preview').innerHTML='';$('imp-cols').innerHTML='';$('imp-btn').style.display='none';$('import-modal').style.display='flex'}
+  impTarget=target;impRows=[];
+  const nomes={marcas:'Marcas',produtos:'Produtos',clientes:'Clientes'};
+  $('imp-title').textContent='Importar — '+nomes[target];
+  $('imp-file').value='';$('imp-preview').innerHTML='';$('imp-cols').innerHTML='';$('imp-btn').style.display='none';
+
+  // Modelos de colunas para cada tipo
+  const modelos={
+    marcas:[{nome:'Natura'},{nome:'Avon'},{nome:'O Boticário'}],
+    produtos:[{nome:'Creme Hidratante',codigo:'CREM001',preco_custo:15.00,preco_venda:29.90,estoque:10}],
+    clientes:[{nome:'Maria Silva',telefone:'11999999999',email:'maria@email.com',cidade:'São Paulo'}]
+  };
+
+  // Botão de download do modelo
+  $('imp-preview').innerHTML=`
+    <div style="background:var(--cream);border-radius:8px;padding:12px;margin-bottom:10px;font-size:13px">
+      <strong>📥 Baixe o modelo, preencha e faça o upload:</strong>
+      <button class="btn btn-secondary" style="margin-top:8px;width:100%" onclick="downloadModelo('${target}')">
+        ⬇ Baixar Modelo ${nomes[target]}.xlsx
+      </button>
+    </div>
+  `;
+  $('import-modal').style.display='flex';
+}
+
+function downloadModelo(target){
+  const modelos={
+    marcas:{cols:['nome','descricao','site'],ex:[['Natura','Cosméticos brasileiros','natura.com.br'],['Avon','Beleza e cuidados','avon.com.br']]},
+    produtos:{cols:['nome','codigo','preco_custo','preco_venda','estoque_atual','categoria'],ex:[['Creme Hidratante','CREM001',15.00,29.90,10,'Skincare'],['Batom Rosa','BAT001',8.00,18.90,20,'Maquiagem']]},
+    clientes:{cols:['nome','telefone','email','cidade','estado'],ex:[['Maria Silva','11999999999','maria@email.com','São Paulo','SP'],['Ana Costa','21988888888','ana@email.com','Rio de Janeiro','RJ']]}
+  };
+  const m=modelos[target];
+  const wb=XLSX.utils.book_new();
+  const data=[m.cols,...m.ex];
+  const ws=XLSX.utils.aoa_to_sheet(data);
+  // Estilizar cabeçalho
+  ws['!cols']=m.cols.map(()=>({wch:20}));
+  XLSX.utils.book_append_sheet(wb,ws,target);
+  XLSX.writeFile(wb,`modelo_${target}.xlsx`);
+}
 function handleImport(ev){
   const file=ev.target.files[0];if(!file)return;const reader=new FileReader();
   reader.onload=e=>{const wb=XLSX.read(e.target.result,{type:'array'});const ws=wb.Sheets[wb.SheetNames[0]];const json=XLSX.utils.sheet_to_json(ws,{defval:''});if(!json.length){toast('Planilha vazia','warn');return}
@@ -2056,7 +2083,7 @@ async function aplicarCupom(){
 }
 
 // ═══════════ ORÇAMENTOS ═══════════
-const BASE_URL=()=>{const p=window.location.pathname.replace(/[^/]*$/,'');return window.location.origin+p;};
+const BASE_URL=()=>'https://beautysaas.com.br/';
 
 const stOrm=s=>({rascunho:'<span class="badge badge-muted">Rascunho</span>',enviado:'<span class="badge badge-warn">Enviado</span>',aprovado:'<span class="badge badge-success">Aprovado ✓</span>',recusado:'<span class="badge badge-danger">Recusado</span>'}[s]||s);
 
