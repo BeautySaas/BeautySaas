@@ -1073,7 +1073,16 @@ function go(pg){
   if(ld[pg]) ld[pg]();
 }
 function closeModal(){$('modal').style.display='none';$('modal-save').style.display=''}
-async function saveModal(){if(modalCb){const ok=await modalCb();if(ok!==false)closeModal()}}
+async function saveModal(){
+  const btn=$('modal-save');
+  if(btn.disabled)return; // previne duplo clique
+  if(modalCb){
+    btn.disabled=true;btn.textContent='⏳ Salvando...';
+    const ok=await modalCb();
+    btn.disabled=false;btn.textContent='💾 Salvar';
+    if(ok!==false)closeModal();
+  }
+}
 
 // ═══════════ DASHBOARD ═══════════
 async function loadDashboard(){
@@ -1163,7 +1172,7 @@ async function openProduto(id){
   $('modal-body').innerHTML=`<div class="form-grid"><div class="form-row"><div class="form-group"><label>Nome *</label><input id="f-nome"/></div><div class="form-group"><label>Código / SKU</label><input id="f-cod"/></div></div><div class="form-row"><div class="form-group"><label>Marca</label><select id="f-marca"><option value="">—</option>${(ms||[]).map(m=>`<option value="${m.id}">${m.nome}</option>`).join('')}</select></div><div class="form-group"><label>Categoria</label><select id="f-cat"><option value="">—</option><option>Maquiagem</option><option>Skincare</option><option>Perfume</option><option>Cabelo</option><option>Corpo</option><option>Unhas</option><option>Outros</option></select></div></div><div class="form-row"><div class="form-group"><label>Preço Custo (R$)</label><input id="f-custo" type="number" step="0.01" value="0"/></div><div class="form-group"><label>Preço Venda (R$)</label><input id="f-venda" type="number" step="0.01" value="0"/></div></div><div class="form-row"><div class="form-group"><label>Estoque Atual</label><input id="f-est" type="number" step="0.01" value="0"/></div><div class="form-group"><label>Estoque Mínimo</label><input id="f-estm" type="number" step="0.01" value="0"/></div><div class="form-group"><label>Unidade</label><select id="f-un"><option value="un">un</option><option value="ml">ml</option><option value="g">g</option><option value="kit">kit</option></select></div></div><div class="form-group"><label>Descrição</label><textarea id="f-desc"></textarea></div></div>`;
   $('modal-save').style.display='';
   if(id){const{data:p}=await sb.from('produtos').select('*').eq('id',id).single();if(p){$('f-nome').value=p.nome||'';$('f-cod').value=p.codigo||'';$('f-marca').value=p.marca_id||'';$('f-cat').value=p.categoria||'';$('f-custo').value=p.preco_custo||0;$('f-venda').value=p.preco_venda||0;$('f-est').value=p.estoque_atual||0;$('f-estm').value=p.estoque_minimo||0;$('f-un').value=p.unidade||'un';$('f-desc').value=p.descricao||''}}
-  modalCb=async()=>{const p=wt({nome:$('f-nome').value.trim(),codigo:$('f-cod').value.trim()||null,marca_id:$('f-marca').value||null,categoria:$('f-cat').value||null,preco_custo:parseFloat($('f-custo').value)||0,preco_venda:parseFloat($('f-venda').value)||0,estoque_atual:parseFloat($('f-est').value)||0,estoque_minimo:parseFloat($('f-estm').value)||0,unidade:$('f-un').value,descricao:$('f-desc').value||null,ativo:true});if(!p.nome){toast('Nome obrigatório','error');return false}const{error}=id?await sb.from('produtos').update(p).eq('id',id):await sb.from('produtos').insert(p);if(error){toast(error.message,'error');return false}toast('Produto salvo!');loadProdutos()};
+  modalCb=async()=>{const p=wt({nome:$('f-nome').value.trim(),codigo:$('f-cod').value.trim()||null,marca_id:$('f-marca').value||null,categoria:$('f-cat').value||null,preco_custo:parseFloat($('f-custo').value)||0,preco_venda:parseFloat($('f-venda').value)||0,estoque_atual:parseFloat($('f-est').value)||0,estoque_minimo:parseFloat($('f-estm').value)||0,unidade:$('f-un').value,descricao:$('f-desc').value||null,ativo:true});if(!p.nome){toast('Nome obrigatório','error');return false}const{error}=id?await sb.from('produtos').update(p).eq('id',id):await sb.from('produtos').insert(p);if(error){toast(error.message,'error');return false}toast('Produto salvo!');if(curPage==='produtos')loadProdutos();};
   $('modal').style.display='flex';
 }
 
@@ -1248,8 +1257,13 @@ function buscarProd(input,listaId){
   if(q.length<2){lista.style.display='none';return}
   _bT=setTimeout(async()=>{
     const{data}=await sb.from('produtos').select('id,nome,codigo,preco_venda,preco_custo,estoque_atual').or(`nome.ilike.%${q}%,codigo.ilike.%${q}%`).eq('ativo',true).limit(8);
-    if(!data?.length){lista.style.display='none';return}
     lista.style.display='block';
+    if(!data?.length){
+      lista.innerHTML=`<div style="padding:10px;font-size:13px;color:var(--muted)">Nenhum produto encontrado para "<strong>${q}</strong>"
+        <br/><button class="btn btn-sm btn-primary" style="margin-top:8px;width:100%" onclick="$(\'${listaId}\').style.display=\'none\';openProduto()">+ Cadastrar "${q}"</button>
+      </div>`;
+      return;
+    }
     lista.innerHTML=data.map(p=>`<div class="autocomplete-item" onclick="pickProd('${listaId}','${p.id}',\`${p.nome.replace(/`/g,"'")}\`,'${p.codigo||''}',${p.preco_venda},${p.preco_custo},${p.estoque_atual})"><div><strong>${p.nome}</strong>${p.codigo?` <small style="color:var(--muted)">#${p.codigo}</small>`:''}<div style="font-size:11px;color:var(--muted)">Estoque: ${p.estoque_atual}</div></div><div style="text-align:right"><div style="font-weight:600;color:var(--rose)">${fmt(p.preco_venda)}</div><div style="font-size:11px;color:var(--muted)">custo: ${fmt(p.preco_custo)}</div></div></div>`).join('');
   },300);
 }
@@ -1308,7 +1322,10 @@ async function loadCompras(){
       <td>${st?.total>1?st.total+'x':'À vista'}</td>
       <td><strong>${fmt(c.valor_total)}</strong></td>
       <td>${sit==='pago'?'<span class="badge badge-success">Pago</span>':'<span class="badge badge-warn">Pendente'+parcLabel+'</span>'}</td>
-      <td><button class="btn btn-sm btn-secondary" onclick="verItens('compras_itens','compra_id','${c.id}','Itens da Compra #'+(${c.numero||0}||''))">📋 Itens</button></td>
+      <td style="display:flex;gap:4px;flex-wrap:wrap">
+        <button class="btn btn-sm btn-secondary" onclick="verItens('compras_itens','compra_id','${c.id}','Itens da Compra #'+(${c.numero||0}||''))">📋 Itens</button>
+        <button class="btn btn-sm btn-danger" onclick="excluirCompra('${c.id}','${c.numero||c.id.slice(0,6)}')">🗑 Excluir</button>
+      </td>
     </tr>`}).join(''):emptyR(9,'Nenhuma compra');
 }
 async function verItens(tabela,fk,id,titulo){
@@ -1361,35 +1378,71 @@ function renderCI(){$('cm-itens').innerHTML=cItens.map((i,x)=>`<tr><td>${i.nome}
 function calcTotalC(){$('cm-total').textContent=fmt(cItens.reduce((s,i)=>s+i.quantidade*i.preco_unitario,0)+(parseFloat($('cm-frete').value)||0))}
 async function saveCompra(){
   if(!cItens.length){toast('Adicione ao menos 1 produto','error');return}
+  // Anti-duplo clique
+  const btn=document.querySelector('#compra-modal .modal-footer .btn-primary');
+  if(btn&&btn.disabled)return;
+  if(btn){btn.disabled=true;btn.textContent='⏳ Salvando...';}
+  const restaurarBtn=()=>{if(btn){btn.disabled=false;btn.textContent='💾 Confirmar Compra';}};
+
   const forn=$('cm-forn').value||null,data=$('cm-data').value,nf=$('cm-nf').value.trim()||null;
   const pagto=$('cm-pagto').value,parcelas=parseInt($('cm-parc').value)||1,venc1=$('cm-venc').value;
   const frete=parseFloat($('cm-frete').value)||0,sub=cItens.reduce((s,i)=>s+i.quantidade*i.preco_unitario,0),total=sub+frete;
   const obs=$('cm-obs').value||null;
+
+  // Validar NF duplicada no mesmo fornecedor
+  if(nf&&forn){
+    const{data:nfEx}=await sb.from('compras').select('numero').ilike('observacoes','%NF: '+nf+'%').eq('fornecedor_id',forn);
+    if(nfEx?.length){
+      toast(`NF ${nf} já existe para este fornecedor!`,'error');
+      restaurarBtn();return;
+    }
+  }
+
   const{data:lastC}=await sb.from('compras').select('numero').order('created_at',{ascending:false}).limit(50);
   const numsC=(lastC||[]).map(c=>parseInt(c.numero)||0);
   const num=(numsC.length?Math.max(...numsC):0)+1;
   const cObj=wt({numero:num,fornecedor_id:forn,data_pedido:data,forma_pagamento:pagto,valor_total:total,observacoes:[nf?'NF: '+nf:'',frete>0?'Frete: R$'+frete.toFixed(2):'',obs||''].filter(Boolean).join('. ')||null,status:'pendente'});
   const{data:compra,error}=await sb.from('compras').insert(cObj).select().single();
-  if(error){toast('Erro compra: '+error.message,'error');return}
-  // Itens
+  if(error){toast('Erro compra: '+error.message,'error');restaurarBtn();return}
   for(const it of cItens){const{error:ie}=await sb.from('compras_itens').insert(wt({compra_id:compra.id,produto_id:it.produto_id,quantidade:it.quantidade,preco_unitario:it.preco_unitario}));if(ie)console.error('item compra err:',ie)}
-  // Estoque
   for(const it of cItens){
     const{data:pr}=await sb.from('produtos').select('estoque_atual').eq('id',it.produto_id).single();
     const ea=parseFloat(pr?.estoque_atual||0),en=ea+it.quantidade;
     await sb.from('produtos').update({estoque_atual:en,preco_custo:it.preco_unitario}).eq('id',it.produto_id);
     await sb.from('estoque_movimentacoes').insert(wt({produto_id:it.produto_id,tipo:'entrada',quantidade:it.quantidade,saldo_anterior:ea,saldo_posterior:en,referencia_id:compra.id,referencia_tipo:'compra',observacoes:'Compra #'+num}));
   }
-  // Lançamentos (contas a pagar)
   const vp=+(total/parcelas).toFixed(2);let lok=0;
   for(let p=1;p<=parcelas;p++){
     const vd=new Date(venc1);vd.setMonth(vd.getMonth()+(p-1));
     const vlr=p===parcelas?+(total-vp*(parcelas-1)).toFixed(2):vp;
     const{error:le}=await sb.from('lancamentos').insert(wt({tipo:'pagar',descricao:`Compra #${num}${nf?' NF '+nf:''}${parcelas>1?' ('+p+'/'+parcelas+')':''}`,categoria:'compra',valor:vlr,data_vencimento:vd.toISOString().slice(0,10),status:'pendente',referencia_id:compra.id,referencia_tipo:'compra',observacoes:nf?'NF: '+nf:null}));
-    if(le){console.error('lanc err:',le);toast('Erro lançamento: '+le.message,'error')}else lok++;
+    if(le)console.error(le);else lok++;
   }
   toast(`Compra #${num}: ${cItens.length} item(ns), estoque ↑, ${lok} parcela(s)`,'success');
   $('compra-modal').style.display='none';verificarAlertasEstoque();loadCompras();
+  restaurarBtn();
+}
+
+// ═══════════ EXCLUIR COMPRA ═══════════
+async function excluirCompra(id,num){
+  if(!confirm(`Excluir Compra #${num}?\n\nIsso irá:\n• Remover a compra e seus itens\n• Estornar o estoque\n• Cancelar os lançamentos financeiros`))return;
+  // Buscar itens para estornar estoque
+  const{data:itens}=await sb.from('compras_itens').select('produto_id,quantidade').eq('compra_id',id);
+  // Estornar estoque
+  for(const it of itens||[]){
+    const{data:pr}=await sb.from('produtos').select('estoque_atual').eq('id',it.produto_id).single();
+    const ea=parseFloat(pr?.estoque_atual||0);
+    const en=Math.max(0,ea-it.quantidade);
+    await sb.from('produtos').update({estoque_atual:en}).eq('id',it.produto_id);
+  }
+  // Cancelar lançamentos
+  await sb.from('lancamentos').update({status:'cancelado'}).eq('referencia_id',id).eq('referencia_tipo','compra');
+  // Excluir itens e compra
+  await sb.from('compras_itens').delete().eq('compra_id',id);
+  await sb.from('estoque_movimentacoes').delete().eq('referencia_id',id).eq('referencia_tipo','compra');
+  await sb.from('compras').delete().eq('id',id);
+  toast(`Compra #${num} excluída. Estoque e financeiro estornados.`,'success');
+  verificarAlertasEstoque();loadCompras();
 }
 
 // ═══════════ VENDAS ═══════════
@@ -1468,6 +1521,10 @@ function renderVI(){$('vm-itens').innerHTML=vItens.map((i,x)=>`<tr><td>${i.nome}
 function calcTotalV(){$('vm-total').textContent=fmt(Math.max(0,vItens.reduce((s,i)=>s+i.quantidade*i.preco_unitario,0)-(parseFloat($('vm-desc').value)||0)))}
 async function saveVenda(){
   if(!vItens.length){toast('Adicione produto','error');return}
+  const btn=document.querySelector('#venda-modal .modal-footer .btn-primary');
+  if(btn&&btn.disabled)return;
+  if(btn){btn.disabled=true;btn.textContent='⏳ Salvando...';}
+  const restaurarBtn=()=>{if(btn){btn.disabled=false;btn.textContent='💰 Finalizar Venda';}};
   for(const it of vItens){const{data:p}=await sb.from('produtos').select('estoque_atual,nome').eq('id',it.produto_id).single();if(it.quantidade>parseFloat(p?.estoque_atual||0)){toast(`Estoque insuficiente: "${p?.nome}"`,'error');return}}
   const cli=$('vm-cli').value||null,dataV=$('vm-data').value,pagto=$('vm-pagto').value;
   const parcelas=parseInt($('vm-parc').value)||1,desc=parseFloat($('vm-desc').value)||0;
@@ -1502,7 +1559,7 @@ async function saveVenda(){
     _cupomAtivo=null;
   }
   toast(`Venda #${num} registrada!`,'success');$('venda-modal').style.display='none';
-  verificarAlertasEstoque();loadVendas();
+  verificarAlertasEstoque();loadVendas();restaurarBtn();
 }
 
 // ═══════════ ESTOQUE ═══════════
