@@ -1043,6 +1043,7 @@ const pgAct={
   clientes:[{l:'📥 Importar',f:'openImport("clientes")'},{l:'+ Novo Cliente',f:'openCliente()',p:true}],
   fornecedores:[{l:'+ Novo Fornecedor',f:'openFornecedor()',p:true}],
   contasbancarias:[{l:'+ Nova Conta',f:'openContaBancaria()',p:true}],
+  orcamentos:[{l:'+ Novo Orçamento',f:'openOrcamentoModal()',p:true}],
   cupons:[{l:'+ Novo Cupom',f:'openCupom()',p:true}],
   devolucoes:[],
   vendas:[{l:'🔄 Recalcular Status',f:'recalcTodosStatus("venda")'},{l:'+ Nova Venda',f:'openVendaModal()',p:true}],
@@ -1463,11 +1464,15 @@ async function loadVendas(){
     vendaStatus[vid].total++;
     if(l.status==='pago') vendaStatus[vid].pago++;
   });
+  // Buscar devoluções para marcar vendas devolvidas
+  const{data:devs}=await sb.from('devolucoes').select('venda_id');
+  const vendasDevolvidas=new Set((devs||[]).map(d=>d.venda_id));
+
   // Determinar situação: se tem lançamentos, usa eles; se não, usa forma de pagamento
   const getVendaSit=v=>{
+    if(vendasDevolvidas.has(v.id))return'devolvida';
     const st=vendaStatus[v.id];
     if(st) return st.pago>=st.total?'pago':'pendente';
-    // fallback: à vista = pago, crédito/fiado = pendente
     return(v.forma_pagamento==='fiado'||v.forma_pagamento==='cartao_credito')?'pendente':'pago';
   };
 
@@ -1483,16 +1488,21 @@ async function loadVendas(){
     const sit=getVendaSit(v);
     const st=vendaStatus[v.id];
     const parcLabel=st&&st.total>1?` (${st.pago}/${st.total} pagas)`:'';
+    const sitBadge=sit==='devolvida'
+      ?'<span class="badge badge-muted">↩ Devolvida</span>'
+      :sit==='pago'
+        ?'<span class="badge badge-success">Pago</span>'
+        :'<span class="badge badge-warn">A Receber'+parcLabel+'</span>';
     return`<tr>
       <td><strong>#${v.numero||v.id.slice(0,6)}</strong></td>
       <td>${fmtD(v.data_venda)}</td>
       <td>${v.clientes?.nome||'Consumidor'}</td>
       <td>${pagtoLbl(v.forma_pagamento)}</td>
       <td><strong>${fmt(v.valor_total)}</strong></td>
-      <td>${sit==='pago'?'<span class="badge badge-success">Pago</span>':'<span class="badge badge-warn">A Receber'+parcLabel+'</span>'}</td>
+      <td>${sitBadge}</td>
       <td style="display:flex;gap:4px;flex-wrap:wrap">
         <button class="btn btn-sm btn-secondary" onclick="verItens('vendas_itens','venda_id','${v.id}','Itens da Venda #'+(${v.numero||0}||''))">🧾 Itens</button>
-        <button class="btn btn-sm btn-danger" onclick="openDevolucao('${v.id}','${v.numero||v.id.slice(0,6)}','${v.clientes?.nome||'Consumidor'}',${v.valor_total})" title="Registrar devolução">↩ Dev.</button>
+        ${sit!=='devolvida'?`<button class="btn btn-sm btn-danger" onclick="openDevolucao('${v.id}','${v.numero||v.id.slice(0,6)}','${v.clientes?.nome||'Consumidor'}',${v.valor_total})" title="Registrar devolução">↩ Dev.</button>`:''}
       </td>
     </tr>`}).join(''):emptyR(7,'Nenhuma venda');
 }
