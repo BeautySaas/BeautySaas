@@ -1271,6 +1271,7 @@ function buscarProd(input,listaId){
 function pickProd(listaId,id,nome,cod,pv,pc,est){
   $(listaId).style.display='none';selProd={id,nome,codigo:cod,preco_venda:pv,preco_custo:pc,estoque_atual:est};
   if(listaId==='cm-lista'){$('cm-busca').value=(cod?'['+cod+'] ':'')+nome;$('cm-custo').value=pc.toFixed(2)}
+  else if(listaId==='orm-lista'){$('orm-busca').value=(cod?'['+cod+'] ':'')+nome;$('orm-preco').value=pv.toFixed(2)}
   else{$('vm-busca').value=(cod?'['+cod+'] ':'')+nome;$('vm-preco').value=pv.toFixed(2)}
 }
 async function del(tbl,id){if(!confirm('Excluir?'))return;const{error}=await sb.from(tbl).delete().eq('id',id);if(error)toast(error.message,'error');else{toast('Excluído!');go(curPage)}}
