@@ -917,6 +917,54 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:14px 0}
   </div>
 </div>
 
+<!-- MODAL IMPORTAR NF XML/PDF -->
+<div id="nf-modal" class="modal-overlay" style="display:none">
+  <div class="modal modal-wide" style="max-width:700px">
+    <div class="modal-header"><h3>📄 Importar Nota Fiscal</h3><button class="close-btn" onclick="$('nf-modal').style.display='none'">✕</button></div>
+    <div class="modal-body">
+      <!-- Seleção de tipo -->
+      <div id="nf-tipo-sel" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+        <div onclick="selecionarTipoNF('xml')" style="border:2px solid var(--border);border-radius:8px;padding:16px;text-align:center;cursor:pointer;transition:all .2s" id="nf-opt-xml">
+          <div style="font-size:28px">📋</div>
+          <div style="font-weight:600;margin-top:4px">XML NF-e</div>
+          <div style="font-size:11px;color:var(--muted)">Leitura automática precisa</div>
+        </div>
+        <div onclick="selecionarTipoNF('pdf')" style="border:2px solid var(--border);border-radius:8px;padding:16px;text-align:center;cursor:pointer;transition:all .2s" id="nf-opt-pdf">
+          <div style="font-size:28px">🤖</div>
+          <div style="font-weight:600;margin-top:4px">PDF com IA</div>
+          <div style="font-size:11px;color:var(--muted)">Claude interpreta o PDF</div>
+        </div>
+      </div>
+      <!-- Upload area -->
+      <div id="nf-upload-area" style="border:2px dashed var(--border);border-radius:10px;padding:32px;text-align:center;cursor:pointer;margin-bottom:14px;transition:all .2s;display:none" onclick="$('nf-file').click()" ondragover="event.preventDefault();this.style.borderColor='var(--rose)'" ondragleave="this.style.borderColor='var(--border)'" ondrop="event.preventDefault();this.style.borderColor='var(--border)';handleNFFile(event.dataTransfer.files[0])">
+        <div style="font-size:36px;margin-bottom:8px" id="nf-upload-icon">📄</div>
+        <div style="font-weight:600;margin-bottom:4px" id="nf-upload-label">Arraste o arquivo aqui ou clique para selecionar</div>
+        <div style="font-size:12px;color:var(--muted)" id="nf-upload-hint">Arquivo .xml da NF-e</div>
+        <input type="file" id="nf-file" style="display:none" onchange="handleNFFile(this.files[0])"/>
+      </div>
+      <!-- Loading IA -->
+      <div id="nf-loading" style="display:none;text-align:center;padding:24px">
+        <div style="font-size:32px;margin-bottom:8px;animation:spin 1s linear infinite;display:inline-block">⏳</div>
+        <div style="font-weight:600">Claude está lendo a NF...</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px">Isso leva alguns segundos</div>
+      </div>
+      <!-- Preview -->
+      <div id="nf-preview" style="display:none">
+        <div id="nf-header-info" style="background:var(--cream);border-radius:8px;padding:14px;margin-bottom:14px;font-size:13px;display:grid;grid-template-columns:1fr 1fr;gap:8px"></div>
+        <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">ITENS DA NF</div>
+        <div id="nf-itens-lista"></div>
+        <div style="margin-top:12px;padding:10px;background:var(--cream);border-radius:6px;font-size:13px;display:flex;justify-content:space-between">
+          <span>Total da NF:</span><strong id="nf-total-val">R$ 0,00</strong>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="$('nf-modal').style.display='none'">Cancelar</button>
+      <button class="btn btn-primary" id="nf-btn-importar" style="display:none" onclick="importarNFParaCompra()">✓ Abrir no Modal de Compra</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL BAIXA -->
 <div id="baixa-modal" class="modal-overlay" style="display:none">
   <div class="modal">
@@ -1047,7 +1095,7 @@ const pgAct={
   cupons:[{l:'+ Novo Cupom',f:'openCupom()',p:true}],
   devolucoes:[],
   vendas:[{l:'🔄 Recalcular Status',f:'recalcTodosStatus("venda")'},{l:'+ Nova Venda',f:'openVendaModal()',p:true}],
-  compras:[{l:'🔄 Recalcular Status',f:'recalcTodosStatus("compra")'},{l:'+ Nova Compra',f:'openCompraModal()',p:true}],
+  compras:[{l:'📄 Importar NF XML',f:'openImportNF()'},{l:'🔄 Recalcular Status',f:'recalcTodosStatus("compra")'},{l:'+ Nova Compra',f:'openCompraModal()',p:true}],
   financeiro:[{l:'+ Novo Lançamento',f:'openLancamento()',p:true}],
 };
 function go(pg){
@@ -1423,6 +1471,342 @@ async function saveCompra(){
   toast(`Compra #${num}: ${cItens.length} item(ns), estoque ↑, ${lok} parcela(s)`,'success');
   $('compra-modal').style.display='none';verificarAlertasEstoque();loadCompras();
   restaurarBtn();
+}
+
+// ═══════════ IMPORTAR NF-e XML / PDF IA ═══════════
+let _nfDados=null;
+let _nfTipo='xml';
+
+function openImportNF(){
+  _nfDados=null;_nfTipo='xml';
+  $('nf-file').value='';
+  $('nf-tipo-sel').style.display='grid';
+  $('nf-upload-area').style.display='none';
+  $('nf-preview').style.display='none';
+  $('nf-loading').style.display='none';
+  $('nf-btn-importar').style.display='none';
+  // Reset seleção visual
+  $('nf-opt-xml').style.borderColor='var(--border)';
+  $('nf-opt-pdf').style.borderColor='var(--border)';
+  $('nf-modal').style.display='flex';
+}
+
+function selecionarTipoNF(tipo){
+  _nfTipo=tipo;
+  $('nf-opt-xml').style.borderColor=tipo==='xml'?'var(--rose)':'var(--border)';
+  $('nf-opt-pdf').style.borderColor=tipo==='pdf'?'var(--rose)':'var(--border)';
+  $('nf-upload-area').style.display='block';
+  $('nf-preview').style.display='none';
+  $('nf-btn-importar').style.display='none';
+  if(tipo==='xml'){
+    $('nf-file').accept='.xml';
+    $('nf-upload-icon').textContent='📋';
+    $('nf-upload-label').textContent='Arraste o XML aqui ou clique para selecionar';
+    $('nf-upload-hint').textContent='Arquivo .xml da NF-e do fornecedor';
+  } else {
+    $('nf-file').accept='.pdf,image/*';
+    $('nf-upload-icon').textContent='🤖';
+    $('nf-upload-label').textContent='Arraste o PDF aqui ou clique para selecionar';
+    $('nf-upload-hint').textContent='PDF ou imagem da NF — Claude vai interpretar automaticamente';
+  }
+}
+
+function handleNFFile(file){
+  if(!file){return}
+  if(_nfTipo==='xml'){
+    if(!file.name.endsWith('.xml')){toast('Selecione um arquivo .xml','error');return}
+    const reader=new FileReader();
+    reader.onload=e=>{
+      try{
+        const parser=new DOMParser();
+        const xml=parser.parseFromString(e.target.result,'text/xml');
+        if(xml.querySelector('parsererror')){toast('XML inválido','error');return}
+        parseNFe(xml);
+      }catch(err){toast('Erro ao ler XML: '+err.message,'error')}
+    };
+    reader.readAsText(file,'UTF-8');
+  } else {
+    // PDF ou imagem — usar Claude API
+    lerNFComIA(file);
+  }
+}
+
+async function lerNFComIA(file){
+  $('nf-upload-area').style.display='none';
+  $('nf-loading').style.display='block';
+  $('nf-preview').style.display='none';
+  $('nf-btn-importar').style.display='none';
+
+  try{
+    // Converter arquivo para base64
+    const base64=await new Promise((res,rej)=>{
+      const r=new FileReader();
+      r.onload=()=>res(r.result.split(',')[1]);
+      r.onerror=()=>rej(new Error('Erro ao ler arquivo'));
+      r.readAsDataURL(file);
+    });
+
+    const isPDF=file.type==='application/pdf'||file.name.endsWith('.pdf');
+    const mediaType=isPDF?'application/pdf':file.type||'image/jpeg';
+
+    // Chamar Claude API
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-6',
+        max_tokens:1000,
+        messages:[{
+          role:'user',
+          content:[
+            {
+              type:isPDF?'document':'image',
+              source:{type:'base64',media_type:mediaType,data:base64}
+            },
+            {
+              type:'text',
+              text:`Analise esta nota fiscal e extraia os dados em JSON puro (sem markdown, sem explicações).
+Retorne APENAS o JSON neste formato exato:
+{
+  "fornNome": "nome do fornecedor/emitente",
+  "fornCNPJ": "CNPJ do fornecedor (só números)",
+  "nNF": "número da nota",
+  "dataNF": "data no formato YYYY-MM-DD",
+  "vFrete": 0.00,
+  "vNF": 0.00,
+  "itens": [
+    {
+      "cProd": "código do produto",
+      "xProd": "descrição do produto",
+      "qCom": 1,
+      "vUnCom": 0.00,
+      "vProd": 0.00,
+      "uCom": "UN"
+    }
+  ]
+}
+Se não encontrar algum campo, use null ou 0. Retorne APENAS o JSON.`
+            }
+          ]
+        }]
+      })
+    });
+
+    if(!resp.ok){
+      const err=await resp.json();
+      throw new Error(err.error?.message||'Erro na API');
+    }
+
+    const data=await resp.json();
+    const texto=data.content?.[0]?.text||'';
+    // Limpar possível markdown
+    const jsonStr=texto.replace(/```json\n?/g,'').replace(/```\n?/g,'').trim();
+    const nfData=JSON.parse(jsonStr);
+
+    // Converter para formato interno
+    _nfDados={
+      fornNome:nfData.fornNome||'',
+      fornCNPJ:(nfData.fornCNPJ||'').replace(/\D/g,''),
+      nNF:nfData.nNF||'',
+      dataNF:nfData.dataNF||hoje(),
+      vNF:parseFloat(nfData.vNF)||0,
+      vFrete:parseFloat(nfData.vFrete)||0,
+      itens:(nfData.itens||[]).map(i=>({
+        cProd:i.cProd||'',
+        xProd:i.xProd||'Produto',
+        qCom:parseFloat(i.qCom)||1,
+        vUnCom:parseFloat(i.vUnCom)||0,
+        vProd:parseFloat(i.vProd)||0,
+        uCom:i.uCom||'UN'
+      }))
+    };
+
+    $('nf-loading').style.display='none';
+
+    // Renderizar igual ao XML
+    $('nf-header-info').innerHTML=`
+      <div><div style="font-size:11px;color:var(--muted)">FORNECEDOR</div><div style="font-weight:600">${_nfDados.fornNome||'—'}</div><div style="font-size:11px;color:var(--muted)">${_nfDados.fornCNPJ?'CNPJ: '+_nfDados.fornCNPJ:''}</div></div>
+      <div><div style="font-size:11px;color:var(--muted)">NF</div><div style="font-weight:600">#${_nfDados.nNF||'—'}</div><div style="font-size:11px;color:var(--muted)">Data: ${fmtD(_nfDados.dataNF)}</div></div>
+      <div><div style="font-size:11px;color:var(--muted)">ITENS</div><div style="font-weight:600">${_nfDados.itens.length}</div></div>
+      <div><div style="font-size:11px;color:var(--muted)">FRETE</div><div style="font-weight:600">${fmt(_nfDados.vFrete)}</div></div>
+    `;
+    renderNFItens(_nfDados.itens);
+    $('nf-total-val').textContent=fmt(_nfDados.vNF);
+    $('nf-preview').style.display='block';
+    $('nf-btn-importar').style.display='';
+    toast(`✅ NF lida pela IA! ${_nfDados.itens.length} itens encontrados.`,'success');
+
+  }catch(err){
+    console.error('Erro IA NF:',err);
+    $('nf-loading').style.display='none';
+    $('nf-upload-area').style.display='block';
+    toast('Erro ao ler NF: '+err.message,'error');
+  }
+}
+
+function getXmlVal(xml,tag){
+  // Busca sem namespace e com namespace
+  return xml.querySelector(tag)?.textContent?.trim()||'';
+}
+
+function parseNFe(xml){
+  try{
+    // Dados do emitente (fornecedor)
+    const emit=xml.querySelector('emit');
+    const fornCNPJ=getXmlVal(emit,'CNPJ');
+    const fornNome=getXmlVal(emit,'xNome')||getXmlVal(emit,'xFant');
+
+    // Dados da NF
+    const ide=xml.querySelector('ide');
+    const nNF=getXmlVal(ide,'nNF');
+    const dhEmi=getXmlVal(ide||xml,'dhEmi')||getXmlVal(ide||xml,'dEmi');
+    const dataNF=dhEmi?dhEmi.slice(0,10):hoje();
+
+    // Totais
+    const ICMSTot=xml.querySelector('ICMSTot')||xml.querySelector('total');
+    const vNF=getXmlVal(ICMSTot,'vNF');
+    const vFrete=getXmlVal(ICMSTot,'vFrete')||'0';
+
+    // Itens
+    const dets=xml.querySelectorAll('det');
+    const itens=[];
+    dets.forEach(det=>{
+      const prod=det.querySelector('prod');
+      if(!prod)return;
+      itens.push({
+        cProd:getXmlVal(prod,'cProd'),          // código do produto
+        xProd:getXmlVal(prod,'xProd'),          // descrição
+        qCom:parseFloat(getXmlVal(prod,'qCom'))||1,   // quantidade
+        vUnCom:parseFloat(getXmlVal(prod,'vUnCom'))||0, // valor unitário
+        vProd:parseFloat(getXmlVal(prod,'vProd'))||0,   // valor total item
+        uCom:getXmlVal(prod,'uCom'),            // unidade
+      });
+    });
+
+    if(!itens.length){toast('Nenhum item encontrado no XML','error');return}
+
+    _nfDados={fornCNPJ,fornNome,nNF,dataNF,vNF:parseFloat(vNF)||0,vFrete:parseFloat(vFrete)||0,itens};
+
+    // Renderizar preview
+    $('nf-header-info').innerHTML=`
+      <div><div style="font-size:11px;color:var(--muted)">FORNECEDOR</div><div style="font-weight:600">${fornNome||'—'}</div><div style="font-size:11px;color:var(--muted)">${fornCNPJ?'CNPJ: '+fornCNPJ:''}</div></div>
+      <div><div style="font-size:11px;color:var(--muted)">NF</div><div style="font-weight:600">#${nNF||'—'}</div><div style="font-size:11px;color:var(--muted)">Data: ${fmtD(dataNF)}</div></div>
+      <div><div style="font-size:11px;color:var(--muted)">ITENS</div><div style="font-weight:600">${itens.length}</div></div>
+      <div><div style="font-size:11px;color:var(--muted)">FRETE</div><div style="font-weight:600">${fmt(parseFloat(vFrete)||0)}</div></div>
+    `;
+
+    // Lista de itens com status de cadastro
+    renderNFItens(itens);
+    $('nf-total-val').textContent=fmt(_nfDados.vNF);
+    $('nf-preview').style.display='block';
+    $('nf-upload-area').style.display='none';
+    $('nf-btn-importar').style.display='';
+    toast(`NF #${nNF} lida com sucesso! ${itens.length} itens.`,'success');
+  }catch(err){
+    console.error('Erro parseNFe:',err);
+    toast('Erro ao interpretar NF-e: '+err.message,'error');
+  }
+}
+
+let _nfProdMatch={}; // mapa cProd → produto_id cadastrado
+
+async function renderNFItens(itens){
+  $('nf-itens-lista').innerHTML='<div style="text-align:center;padding:12px;color:var(--muted)">🔍 Verificando produtos cadastrados...</div>';
+
+  // Buscar produtos por código para ver quais já estão cadastrados
+  const codigos=itens.map(i=>i.cProd).filter(Boolean);
+  const{data:prods}=await sb.from('produtos').select('id,nome,codigo,preco_custo').in('codigo',codigos);
+  _nfProdMatch={};
+  (prods||[]).forEach(p=>{if(p.codigo)_nfProdMatch[p.codigo]=p});
+
+  $('nf-itens-lista').innerHTML=`<table style="width:100%;font-size:13px;border-collapse:collapse">
+    <thead><tr style="background:var(--cream)">
+      <th style="padding:8px;text-align:left">Código</th>
+      <th style="padding:8px;text-align:left">Produto NF</th>
+      <th style="padding:8px;text-align:center">Qtd</th>
+      <th style="padding:8px;text-align:right">Vl. Unit.</th>
+      <th style="padding:8px;text-align:center">Status</th>
+    </tr></thead>
+    <tbody>${itens.map((it,i)=>{
+      const match=_nfProdMatch[it.cProd];
+      const status=match
+        ?`<span class="badge badge-success">✓ Cadastrado</span>`
+        :`<span class="badge badge-warn">Não cadastrado</span>
+         <button class="btn btn-sm btn-primary" style="margin-left:4px;font-size:10px" onclick="criarProdutoNF(${i})">+ Criar</button>`;
+      return`<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:8px;font-family:monospace;font-size:11px">${it.cProd||'—'}</td>
+        <td style="padding:8px"><strong>${it.xProd}</strong>${match?`<br/><small style="color:var(--muted)">→ ${match.nome}</small>`:''}</td>
+        <td style="padding:8px;text-align:center">${it.qCom} ${it.uCom||''}</td>
+        <td style="padding:8px;text-align:right">${fmt(it.vUnCom)}</td>
+        <td style="padding:8px;text-align:center">${status}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+
+async function criarProdutoNF(idx){
+  const it=_nfDados.itens[idx];
+  // Abrir modal de produto pré-preenchido com dados da NF
+  await openProduto();
+  // Preencher campos após modal abrir
+  setTimeout(()=>{
+    if($('f-nome'))$('f-nome').value=it.xProd;
+    if($('f-cod'))$('f-cod').value=it.cProd||'';
+    if($('f-custo'))$('f-custo').value=it.vUnCom.toFixed(2);
+    if($('f-venda'))$('f-venda').value=(it.vUnCom*1.5).toFixed(2); // sugestão 50% margem
+    if($('f-est'))$('f-est').value=0;
+  },300);
+  // Ao salvar, atualizar o match e re-renderizar
+  const origCb=modalCb;
+  modalCb=async()=>{
+    const ok=await origCb();
+    if(ok!==false){
+      // Rebuscar produto recém criado
+      const{data:p}=await sb.from('produtos').select('id,nome,codigo,preco_custo').eq('codigo',it.cProd).maybeSingle();
+      if(p){_nfProdMatch[it.cProd]=p;renderNFItens(_nfDados.itens);}
+    }
+    return ok;
+  };
+}
+
+async function importarNFParaCompra(){
+  if(!_nfDados){toast('Nenhuma NF carregada','error');return}
+  $('nf-modal').style.display='none';
+
+  // Abrir modal de compra e preencher
+  await openCompraModal();
+  setTimeout(async()=>{
+    // Preencher NF
+    if($('cm-nf'))$('cm-nf').value=_nfDados.nNF||'';
+    if($('cm-data'))$('cm-data').value=_nfDados.dataNF;
+    if($('cm-frete'))$('cm-frete').value=_nfDados.vFrete.toFixed(2);
+
+    // Tentar vincular fornecedor por CNPJ
+    if(_nfDados.fornCNPJ){
+      const{data:forn}=await sb.from('fornecedores').select('id,nome').ilike('cnpj','%'+_nfDados.fornCNPJ.replace(/\D/g,'')+'%').maybeSingle();
+      if(forn&&$('cm-forn'))$('cm-forn').value=forn.id;
+    }
+
+    // Adicionar itens que têm cadastro
+    cItens=[];
+    let semCadastro=0;
+    for(const it of _nfDados.itens){
+      const match=_nfProdMatch[it.cProd];
+      if(match){
+        cItens.push({produto_id:match.id,nome:match.nome,quantidade:it.qCom,preco_unitario:it.vUnCom});
+      } else {
+        semCadastro++;
+      }
+    }
+    renderCI();
+    calcTotalC();
+
+    if(semCadastro>0){
+      toast(`⚠️ ${semCadastro} item(ns) sem cadastro foram ignorados. Cadastre-os e importe novamente.`,'warn');
+    } else {
+      toast(`✅ ${cItens.length} itens importados da NF #${_nfDados.nNF}!`,'success');
+    }
+  },400);
 }
 
 // ═══════════ EXCLUIR COMPRA ═══════════
