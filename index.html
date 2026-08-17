@@ -163,6 +163,96 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:14px 0}
   .form-row{grid-template-columns:1fr}
   .kpi-grid{grid-template-columns:repeat(2,1fr)}
 }
+
+/* ── MOBILE RESPONSIVO ── */
+@media(max-width:600px){
+  /* Sidebar vira bottom nav no mobile */
+  :root{--sidebar-w:0px}
+  #app.visible{flex-direction:column}
+  #sidebar{
+    width:100%!important;height:60px;flex-direction:row;
+    flex-shrink:0;overflow-x:auto;overflow-y:hidden;
+    position:fixed;bottom:0;left:0;right:0;z-index:500;
+    border-top:1px solid rgba(255,255,255,.1);
+  }
+  .sidebar-logo,.sidebar-tenant,.nav-section,.sidebar-footer{display:none!important}
+  nav{display:flex;flex-direction:row;overflow-x:auto;padding:0;gap:0;width:100%}
+  nav::-webkit-scrollbar{display:none}
+  .nav-item{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    min-width:60px;padding:4px 8px;font-size:9px;gap:2px;border-radius:0;
+    white-space:nowrap;border-bottom:none!important;border-top:2px solid transparent;
+  }
+  .nav-item.active{border-top-color:var(--rose);background:rgba(201,105,107,.1)}
+  .nav-item .icon{font-size:18px;display:block}
+  /* Main area */
+  #main{
+    flex:1;height:calc(100vh - 60px);overflow-y:auto;
+    padding-bottom:0;
+  }
+  #topbar{padding:10px 14px}
+  #page-title{font-size:16px}
+  #topbar-actions{gap:4px}
+  #topbar-actions .btn{padding:6px 10px;font-size:11px}
+  #content{padding:10px 12px 80px}
+  /* KPIs */
+  .kpi-grid{grid-template-columns:repeat(2,1fr)!important;gap:8px}
+  .kpi{padding:12px}
+  .kpi-value{font-size:18px}
+  /* Cards e tabelas */
+  .card{border-radius:8px}
+  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{min-width:500px}
+  /* Modais */
+  .modal-overlay{align-items:flex-end;padding:0}
+  .modal{
+    border-radius:16px 16px 0 0!important;
+    max-width:100%!important;width:100%!important;
+    max-height:90vh;overflow-y:auto;
+    margin:0!important;
+  }
+  .modal-wide{max-width:100%!important}
+  .form-row{grid-template-columns:1fr!important}
+  .form-grid{gap:10px}
+  /* Auth */
+  .auth-card{border-radius:16px;padding:24px 18px;max-width:100%;margin:12px}
+  /* Topbar do modal de compra/venda */
+  .modal-body{padding:14px}
+  /* Filtros */
+  .rel-filtros{gap:6px;padding:10px}
+  /* Checklist flutuante */
+  #checklist-float{width:calc(100vw - 24px);right:12px;bottom:70px}
+  /* Orçamento modal footer */
+  .modal-footer{flex-wrap:wrap;gap:6px}
+  .modal-footer .btn{flex:1;min-width:100px;text-align:center}
+  /* Botões de ação nas tabelas */
+  td button.btn-sm{padding:4px 6px;font-size:10px}
+  /* Dashboard grid */
+  .section-grid,
+  [style*="grid-template-columns:1fr 1fr"]{
+    grid-template-columns:1fr!important
+  }
+  /* Planos */
+  .planos-grid{grid-template-columns:1fr!important}
+  /* Cartão modal */
+  #cartao-modal .modal{padding:24px 18px}
+  /* KPIs compras/vendas 4 col → 2 col */
+  [style*="grid-template-columns:repeat(4,1fr)"]{
+    grid-template-columns:repeat(2,1fr)!important
+  }
+  [style*="grid-template-columns:repeat(3,1fr)"]{
+    grid-template-columns:repeat(2,1fr)!important
+  }
+}
+
+/* Tablet */
+@media(min-width:601px) and (max-width:900px){
+  :root{--sidebar-w:180px}
+  .kpi-grid{grid-template-columns:repeat(2,1fr)}
+  .nav-item{font-size:12px;padding:8px 12px}
+  .nav-section{font-size:9px}
+  [style*="grid-template-columns:1fr 1fr"]{grid-template-columns:1fr!important}
+}
 /* ── RELATÓRIOS ── */
 .rel-filtros{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;padding:14px;background:var(--cream);border:1px solid var(--border);border-radius:10px}
 .rel-filtros .form-group{margin:0}
@@ -180,7 +270,40 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:14px 0}
 .dre-row.total{font-weight:700;background:rgba(0,0,0,.03)}
 .dre-row.lucro{font-weight:700;font-size:15px;color:var(--success)}
 .dre-row.prejuizo{font-weight:700;font-size:15px;color:var(--danger)}
-@media print{.sidebar,.topbar,.rel-filtros,button{display:none!important}.page{display:block!important}}
+/* ── MOBILE SIDEBAR OVERLAY ── */
+#sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:499}
+@media(max-width:600px){
+  #menu-toggle{display:block!important}
+  #sidebar{
+    transform:translateX(-100%);position:fixed;top:0;left:0;
+    width:260px!important;height:100vh;z-index:600;
+    transition:transform .25s ease;flex-direction:column!important;
+    overflow-y:auto!important;overflow-x:hidden;
+  }
+  #sidebar.open{transform:translateX(0)}
+  #sidebar-overlay.open{display:block}
+  #main{height:100vh;overflow-y:auto}
+  #content{padding:10px 12px 20px}
+  nav{flex-direction:column!important;overflow-y:auto!important;overflow-x:hidden!important;height:auto!important}
+  .nav-item{
+    flex-direction:row!important;min-width:unset!important;
+    padding:11px 16px!important;font-size:13px!important;
+    border-top:none!important;border-bottom:none!important;
+    border-left:3px solid transparent!important;
+    justify-content:flex-start!important;gap:10px!important;
+  }
+  .nav-item.active{border-left-color:var(--rose)!important;background:rgba(201,105,107,.1)!important}
+  .nav-item .icon{font-size:16px!important;min-width:20px}
+  .sidebar-logo,.sidebar-tenant,.nav-section,.sidebar-footer{display:flex!important}
+  .sidebar-footer{display:block!important}
+  .modal-overlay{padding:0;align-items:flex-end}
+  .modal,.modal-wide{
+    border-radius:16px 16px 0 0!important;
+    max-width:100%!important;width:100%!important;
+    max-height:90vh!important;overflow-y:auto;
+  }
+}
+
 /* ── PLANOS / UPGRADE ── */
 .upgrade-overlay{position:absolute;inset:0;background:rgba(250,248,245,.92);backdrop-filter:blur(4px);z-index:100;display:flex;align-items:center;justify-content:center;border-radius:12px}
 .upgrade-box{text-align:center;padding:32px;max-width:360px}
@@ -260,6 +383,7 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:14px 0}
 
 <!-- APP -->
 <div id="app">
+  <div id="sidebar-overlay" onclick="toggleMobileMenu()"></div>
   <div id="sidebar">
     <div class="sidebar-logo"><h1>✦ BeautySaaS</h1><span>Gestão de Revendas</span></div>
     <div class="sidebar-tenant">
@@ -304,7 +428,13 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:14px 0}
     </div>
   </div>
   <div id="main">
-    <div id="topbar"><div id="page-title">Dashboard</div><div class="topbar-actions" id="topbar-actions"></div></div>
+    <div id="topbar">
+    <div style="display:flex;align-items:center;gap:10px">
+      <button id="menu-toggle" onclick="toggleMobileMenu()" style="display:none;background:none;border:none;cursor:pointer;font-size:22px;color:var(--ink);padding:4px">☰</button>
+      <div id="page-title">Dashboard</div>
+    </div>
+    <div class="topbar-actions" id="topbar-actions"></div>
+  </div>
     <div id="content">
 
       <!-- Dashboard -->
@@ -1085,6 +1215,8 @@ function trErr(m){if(m.includes('Invalid login'))return'Email ou senha incorreto
 
 // ═══════════ NAV ═══════════
 const pgTitle={dashboard:'Dashboard',marcas:'Marcas',produtos:'Produtos',clientes:'Clientes',fornecedores:'Fornecedores',contasbancarias:'Contas Bancárias',orcamentos:'Orçamentos',vendas:'Vendas',compras:'Compras',estoque:'Estoque',financeiro:'Contas a Pagar / Receber',fluxo:'Fluxo de Caixa',planos:'Meu Plano'};
+// Labels curtos para nav mobile
+const pgMobile={dashboard:'Início',marcas:'Marcas',produtos:'Produtos',clientes:'Clientes',fornecedores:'Fornec.',contasbancarias:'Contas',orcamentos:'Orç.',vendas:'Vendas',compras:'Compras',estoque:'Estoque',financeiro:'Financ.',fluxo:'Fluxo',planos:'Plano','rel-vendas':'Rel.Vnd','rel-dre':'DRE','rel-clientes':'Rel.Cli','rel-estoque':'Rel.Est',cupons:'Cupons',devolucoes:'Devol.'};
 const pgAct={
   marcas:[{l:'📥 Importar',f:'openImport("marcas")'},{l:'+ Nova Marca',f:'openMarca()',p:true}],
   produtos:[{l:'📥 Importar',f:'openImport("produtos")'},{l:'+ Novo Produto',f:'openProduto()',p:true}],
@@ -1120,6 +1252,8 @@ function go(pg){
   if(!verificarAcessoPagina(pg))return;
   const ld={dashboard:loadDashboard,marcas:loadMarcas,produtos:loadProdutos,clientes:loadClientes,fornecedores:loadFornecedores,contasbancarias:loadCB,orcamentos:loadOrcamentos,devolucoes:loadDevolucoes,cupons:loadCupons,vendas:loadVendas,compras:loadCompras,estoque:loadEstoque,financeiro:()=>loadFin(finTipo),fluxo:loadFluxo,planos:loadPlanos,'rel-vendas':()=>{if(!$('rv-ini').value){$('rv-ini').value=mesIni();$('rv-fim').value=fimMes()}},'rel-dre':()=>{if(!$('dre-ini').value){$('dre-ini').value=mesIni();$('dre-fim').value=fimMes()}},'rel-clientes':()=>{},'rel-estoque':()=>{if(!$('re-ini').value){$('re-ini').value=mesIni();$('re-fim').value=fimMes()}}};
   if(ld[pg]) ld[pg]();
+  // Fechar menu mobile ao navegar
+  if(window.innerWidth<=600) closeMobileMenu();
 }
 function closeModal(){$('modal').style.display='none';$('modal-save').style.display=''}
 async function saveModal(){
@@ -1549,59 +1683,25 @@ async function lerNFComIA(file){
     const isPDF=file.type==='application/pdf'||file.name.endsWith('.pdf');
     const mediaType=isPDF?'application/pdf':file.type||'image/jpeg';
 
-    // Chamar Claude API
-    const resp=await fetch('https://api.anthropic.com/v1/messages',{
+    // Chamar Edge Function (proxy seguro — sem expor API key)
+    const resp=await fetch(`${SB_URL}/functions/v1/ler-nf`,{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        model:'claude-sonnet-4-6',
-        max_tokens:1000,
-        messages:[{
-          role:'user',
-          content:[
-            {
-              type:isPDF?'document':'image',
-              source:{type:'base64',media_type:mediaType,data:base64}
-            },
-            {
-              type:'text',
-              text:`Analise esta nota fiscal e extraia os dados em JSON puro (sem markdown, sem explicações).
-Retorne APENAS o JSON neste formato exato:
-{
-  "fornNome": "nome do fornecedor/emitente",
-  "fornCNPJ": "CNPJ do fornecedor (só números)",
-  "nNF": "número da nota",
-  "dataNF": "data no formato YYYY-MM-DD",
-  "vFrete": 0.00,
-  "vNF": 0.00,
-  "itens": [
-    {
-      "cProd": "código do produto",
-      "xProd": "descrição do produto",
-      "qCom": 1,
-      "vUnCom": 0.00,
-      "vProd": 0.00,
-      "uCom": "UN"
-    }
-  ]
-}
-Se não encontrar algum campo, use null ou 0. Retorne APENAS o JSON.`
-            }
-          ]
-        }]
-      })
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization':'Bearer '+SB_KEY,
+        'apikey':SB_KEY
+      },
+      body:JSON.stringify({base64,mediaType})
     });
 
     if(!resp.ok){
       const err=await resp.json();
-      throw new Error(err.error?.message||'Erro na API');
+      throw new Error(err.error||'Erro na Edge Function');
     }
 
-    const data=await resp.json();
-    const texto=data.content?.[0]?.text||'';
-    // Limpar possível markdown
-    const jsonStr=texto.replace(/```json\n?/g,'').replace(/```\n?/g,'').trim();
-    const nfData=JSON.parse(jsonStr);
+    const result=await resp.json();
+    if(!result.ok){throw new Error(result.error||'Erro ao processar NF')}
+    const nfData=result.data;
 
     // Converter para formato interno
     _nfDados={
@@ -3350,6 +3450,24 @@ function atualizarNavPlanos(){
       nav.classList.remove('bloqueado');
     }
   });
+}
+
+// ═══════════ MOBILE MENU ═══════════
+function toggleMobileMenu(){
+  const sidebar=$('sidebar')||document.getElementById('sidebar');
+  const overlay=document.getElementById('sidebar-overlay');
+  if(!sidebar)return;
+  const isOpen=sidebar.classList.contains('open');
+  sidebar.classList.toggle('open',!isOpen);
+  overlay.classList.toggle('open',!isOpen);
+  document.body.style.overflow=isOpen?'':'hidden';
+}
+function closeMobileMenu(){
+  const sidebar=document.getElementById('sidebar');
+  const overlay=document.getElementById('sidebar-overlay');
+  if(sidebar)sidebar.classList.remove('open');
+  if(overlay)overlay.classList.remove('open');
+  document.body.style.overflow='';
 }
 
 // ═══════════ INIT ═══════════
