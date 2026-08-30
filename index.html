@@ -1255,7 +1255,15 @@ function go(pg){
   // Fechar menu mobile ao navegar
   if(window.innerWidth<=600) closeMobileMenu();
 }
-function closeModal(){$('modal').style.display='none';$('modal-save').style.display=''}
+function closeModal(){
+  $('modal').style.display='none';
+  $('modal-save').style.display='';
+  // Se estava no fluxo de criação de produto da NF, reabrir o modal da NF
+  if(_nfModalAberto){
+    _nfModalAberto=false;
+    $('nf-modal').style.display='flex';
+  }
+}
 async function saveModal(){
   const btn=$('modal-save');
   if(btn.disabled)return; // previne duplo clique
@@ -1734,6 +1742,7 @@ async function lerNFComIA(file){
     $('nf-total-val').textContent=fmt(_nfDados.vNF);
     $('nf-preview').style.display='block';
     $('nf-btn-importar').style.display='';
+    verificarTodosNFCadastrados();
     toast(`✅ NF lida pela IA! ${_nfDados.itens.length} itens encontrados.`,'success');
 
   }catch(err){
@@ -1801,6 +1810,7 @@ function parseNFe(xml){
     $('nf-preview').style.display='block';
     $('nf-upload-area').style.display='none';
     $('nf-btn-importar').style.display='';
+    verificarTodosNFCadastrados();
     toast(`NF #${nNF} lida com sucesso! ${itens.length} itens.`,'success');
   }catch(err){
     console.error('Erro parseNFe:',err);
@@ -1844,29 +1854,55 @@ async function renderNFItens(itens){
   </table>`;
 }
 
+let _nfModalAberto=false; // flag para saber se estamos no fluxo NF
+
 async function criarProdutoNF(idx){
   const it=_nfDados.itens[idx];
-  // Abrir modal de produto pré-preenchido com dados da NF
+  _nfModalAberto=true;
+  $('nf-modal').style.display='none';
   await openProduto();
-  // Preencher campos após modal abrir
   setTimeout(()=>{
     if($('f-nome'))$('f-nome').value=it.xProd;
     if($('f-cod'))$('f-cod').value=it.cProd||'';
     if($('f-custo'))$('f-custo').value=it.vUnCom.toFixed(2);
-    if($('f-venda'))$('f-venda').value=(it.vUnCom*1.5).toFixed(2); // sugestão 50% margem
+    if($('f-venda'))$('f-venda').value=(it.vUnCom*1.5).toFixed(2);
     if($('f-est'))$('f-est').value=0;
   },300);
-  // Ao salvar, atualizar o match e re-renderizar
   const origCb=modalCb;
   modalCb=async()=>{
     const ok=await origCb();
     if(ok!==false){
-      // Rebuscar produto recém criado
       const{data:p}=await sb.from('produtos').select('id,nome,codigo,preco_custo').eq('codigo',it.cProd).maybeSingle();
-      if(p){_nfProdMatch[it.cProd]=p;renderNFItens(_nfDados.itens);}
+      if(p){_nfProdMatch[it.cProd]=p;}
+      else{
+        const{data:p2}=await sb.from('produtos').select('id,nome,codigo,preco_custo').ilike('nome',it.xProd).maybeSingle();
+        if(p2){_nfProdMatch[it.cProd]=p2;}
+      }
     }
+    // Sempre reabrir modal da NF
+    _nfModalAberto=false;
+    $('nf-modal').style.display='flex';
+    await renderNFItens(_nfDados.itens);
+    verificarTodosNFCadastrados();
     return ok;
   };
+}
+
+function verificarTodosNFCadastrados(){
+  if(!_nfDados)return;
+  const semCadastro=_nfDados.itens.filter(it=>!_nfProdMatch[it.cProd]);
+  const btn=$('nf-btn-importar');
+  if(semCadastro.length>0){
+    btn.disabled=true;
+    btn.textContent=`⚠️ ${semCadastro.length} produto(s) sem cadastro`;
+    btn.style.opacity='0.5';
+    btn.title='Cadastre todos os produtos antes de importar';
+  } else {
+    btn.disabled=false;
+    btn.textContent='✓ Abrir no Modal de Compra';
+    btn.style.opacity='1';
+    btn.title='';
+  }
 }
 
 async function importarNFParaCompra(){
