@@ -424,7 +424,7 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:14px 0}
         <a href="termos.html" target="_blank" style="color:rgba(255,255,255,.4);text-decoration:none">Privacidade</a> ·
         <a href="termos.html" target="_blank" style="color:rgba(255,255,255,.4);text-decoration:none">LGPD</a><br/>
         © 2026 BeautySaaS<br/>
-        <span style="color:rgba(255,255,255,.2);font-size:9px">v31.08.2026 10:15:00</span>
+        <span style="color:rgba(255,255,255,.2);font-size:9px">v31.08.2026 11:40:00</span>
       </div>
     </div>
   </div>
@@ -2011,9 +2011,19 @@ async function importarNFParaCompra(){
 
 // ═══════════ COBRANÇA (InfinitePay + Pix) ═══════════
 let _cobVenda=null;
+let _cobTenant=null; // config de cobrança sempre lida fresca do banco
 
-function loadConfigCobranca(){
-  const t=curProfile?.tenants;if(!t)return;
+async function getConfigCobranca(){
+  const{data,error}=await sb.from('tenants').select('nome,infinitepay_handle,pix_chave,pix_nome').eq('id',tid).single();
+  if(error){console.error('getConfigCobranca:',error);return curProfile?.tenants||{}}
+  // Mantém o cache em sincronia
+  if(curProfile?.tenants)Object.assign(curProfile.tenants,data);
+  _cobTenant=data;
+  return data;
+}
+
+async function loadConfigCobranca(){
+  const t=await getConfigCobranca();
   if($('cfg-ip-handle'))$('cfg-ip-handle').value=t.infinitepay_handle||'';
   if($('cfg-pix-chave'))$('cfg-pix-chave').value=t.pix_chave||'';
   if($('cfg-pix-nome'))$('cfg-pix-nome').value=t.pix_nome||t.nome||'';
@@ -2029,29 +2039,27 @@ async function salvarConfigCobranca(){
     pix_nome:nome||null
   }).eq('id',tid);
   if(error){toast('Erro ao salvar: '+error.message,'error');return}
-  // Atualizar cache local
-  if(curProfile?.tenants){
-    curProfile.tenants.infinitepay_handle=handle||null;
-    curProfile.tenants.pix_chave=chave||null;
-    curProfile.tenants.pix_nome=nome||null;
-  }
+  await getConfigCobranca(); // recarrega do banco para confirmar
   $('cfg-cobranca-msg').innerHTML='<span style="color:var(--success)">✓ Configurações salvas!</span>';
   setTimeout(()=>{$('cfg-cobranca-msg').innerHTML=''},3000);
   toast('Configurações de cobrança salvas!','success');
 }
 
 async function openCobranca(vendaId){
+  const t=await getConfigCobranca(); // sempre fresco
+  if(!t.infinitepay_handle&&!t.pix_chave){
+    toast('Configure sua InfiniteTag ou chave Pix em Meu Plano','warn');
+    go('planos');return;
+  }
   const{data:v}=await sb.from('vendas').select('*,clientes(nome,telefone,whatsapp,email)').eq('id',vendaId).single();
   if(!v){toast('Venda não encontrada','error');return}
   const{data:itens}=await sb.from('vendas_itens').select('quantidade,preco_unitario,produtos(nome)').eq('venda_id',vendaId);
-  // Saldo em aberto (lançamentos pendentes)
   const{data:lancs}=await sb.from('lancamentos').select('valor,status').eq('referencia_id',vendaId).eq('referencia_tipo','venda');
   const pendente=(lancs||[]).filter(l=>l.status==='pendente').reduce((s,l)=>s+parseFloat(l.valor||0),0);
   const aCobrar=pendente>0?pendente:parseFloat(v.valor_total||0);
 
   _cobVenda={venda:v,itens:itens||[],aCobrar,link:null};
 
-  const t=curProfile?.tenants||{};
   $('cob-resumo').innerHTML=`
     <div style="display:flex;justify-content:space-between;margin-bottom:6px">
       <span style="color:var(--muted)">Venda</span><strong>#${v.numero||v.id.slice(0,6)}</strong>
@@ -2063,7 +2071,6 @@ async function openCobranca(vendaId){
       <span style="color:var(--muted)">Valor a cobrar</span><strong style="color:var(--rose);font-size:15px">${fmt(aCobrar)}</strong>
     </div>`;
 
-  // Default: link se tiver handle, senão pix
   $('cob-forma').value=t.infinitepay_handle?'link':'pix';
   $('cob-gerar-area').style.display='';
   $('cob-preview-area').style.display='none';
@@ -2074,7 +2081,7 @@ async function openCobranca(vendaId){
 }
 
 function renderCobPreview(){
-  const t=curProfile?.tenants||{};
+  const t=_cobTenant||{};
   const forma=$('cob-forma').value;
   const info=$('cob-link-info');
   if(forma==='link'){
@@ -2090,7 +2097,7 @@ function renderCobPreview(){
 
 async function gerarCobranca(){
   if(!_cobVenda)return;
-  const t=curProfile?.tenants||{};
+  const t=_cobTenant||await getConfigCobranca();
   const forma=$('cob-forma').value;
   const btn=$('cob-btn-gerar');
 
@@ -2103,7 +2110,6 @@ async function gerarCobranca(){
     btn.disabled=true;btn.textContent='⏳ Gerando link...';
     try{
       const v=_cobVenda.venda;
-      // Itens em centavos. Se houver desconto/parcial, envia item único com o saldo.
       const somaItens=_cobVenda.itens.reduce((s,i)=>s+i.quantidade*i.preco_unitario,0);
       const usarItens=_cobVenda.itens.length&&Math.abs(somaItens-_cobVenda.aCobrar)<0.02;
       const items=usarItens
@@ -2146,7 +2152,7 @@ async function gerarCobranca(){
 }
 
 function montarTextoCobranca(forma,link){
-  const t=curProfile?.tenants||{};
+  const t=_cobTenant||{};
   const v=_cobVenda.venda;
   const primeiroNome=(v.clientes?.nome||'').split(' ')[0]||'';
   const saud=primeiroNome?`Oi, ${primeiroNome}!`:'Oi!';
@@ -3111,8 +3117,8 @@ async function converterVenda(orcId){
   toast(`✅ Venda #${num} criada com sucesso!`,'success');
   go('vendas');
   // Oferecer envio da cobrança logo em seguida
-  const t=curProfile?.tenants||{};
-  if(t.infinitepay_handle||t.pix_chave){
+  const tCfg=await getConfigCobranca();
+  if(tCfg.infinitepay_handle||tCfg.pix_chave){
     setTimeout(()=>{
       if(confirm(`Venda #${num} criada!\n\nDeseja enviar a cobrança para a cliente agora?`)) openCobranca(venda.id);
     },600);
