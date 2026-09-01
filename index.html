@@ -424,7 +424,7 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:14px 0}
         <a href="termos.html" target="_blank" style="color:rgba(255,255,255,.4);text-decoration:none">Privacidade</a> ·
         <a href="termos.html" target="_blank" style="color:rgba(255,255,255,.4);text-decoration:none">LGPD</a><br/>
         © 2026 BeautySaaS<br/>
-        <span style="color:rgba(255,255,255,.2);font-size:9px">v31.08.2026 12:05:00</span>
+        <span style="color:rgba(255,255,255,.2);font-size:9px">v31.08.2026 22:35:00</span>
       </div>
     </div>
   </div>
@@ -1124,6 +1124,48 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:14px 0}
   </div>
 </div>
 
+<!-- MODAL ALTERAR PAGAMENTO -->
+<div id="pag-modal" class="modal-overlay" style="display:none">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-header"><h3>🔄 Alterar Pagamento</h3><button class="close-btn" onclick="$('pag-modal').style.display='none'">✕</button></div>
+    <div class="modal-body">
+      <div id="pag-resumo" style="background:var(--cream);border-radius:8px;padding:14px;margin-bottom:14px;font-size:13px"></div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Nova forma de pagamento</label>
+          <select id="pag-forma" onchange="togglePagParc()">
+            <option value="pix">Pix</option>
+            <option value="dinheiro">Dinheiro</option>
+            <option value="cartao_credito">Crédito</option>
+            <option value="cartao_debito">Débito</option>
+            <option value="fiado">Fiado (a prazo)</option>
+          </select>
+        </div>
+        <div class="form-group" id="pag-parc-wrap">
+          <label>Parcelas</label>
+          <select id="pag-parc" onchange="renderPagPreview()">
+            <option value="1">1x</option><option value="2">2x</option><option value="3">3x</option>
+            <option value="4">4x</option><option value="5">5x</option><option value="6">6x</option>
+            <option value="8">8x</option><option value="10">10x</option><option value="12">12x</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Vencimento da 1ª parcela</label>
+        <input type="date" id="pag-venc" onchange="renderPagPreview()"/>
+      </div>
+      <div id="pag-preview" style="font-size:12px;color:var(--muted);background:var(--cream);border-radius:6px;padding:10px;margin-top:6px"></div>
+      <div style="font-size:11px;color:var(--muted);margin-top:10px">
+        ⚠️ As parcelas ainda em aberto serão refeitas. Parcelas já pagas não são alteradas.
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="$('pag-modal').style.display='none'">Cancelar</button>
+      <button class="btn btn-primary" id="pag-btn-salvar" onclick="salvarAlteracaoPagamento()">💾 Aplicar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL COBRANÇA -->
 <div id="cob-modal" class="modal-overlay" style="display:none">
   <div class="modal" style="max-width:560px">
@@ -1215,9 +1257,15 @@ function emptyR(c,m){return`<tr><td colspan="${c}" style="text-align:center;padd
 function filt(tid,q){document.querySelectorAll('#'+tid+' tbody tr').forEach(r=>r.style.display=r.textContent.toLowerCase().includes(q.toLowerCase())?'':'none')}
 function pagtoLbl(f){return{pix:'Pix',dinheiro:'Dinheiro',cartao_credito:'Crédito',cartao_debito:'Débito',fiado:'Fiado',boleto:'Boleto',transferencia:'Transf.'}[f]||f||'—'}
 function stLanc(l){if(l.status==='pago')return'<span class="badge badge-success">Pago</span>';if(l.status==='cancelado')return'<span class="badge badge-muted">Cancelado</span>';return new Date(l.data_vencimento)<new Date()?'<span class="badge badge-danger">Vencido</span>':'<span class="badge badge-warn">Pendente</span>'}
-function mesIni(){const n=new Date();return`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-01`}
-function hoje(){return new Date().toISOString().slice(0,10)}
-function fimMes(){const n=new Date();const f=new Date(n.getFullYear(),n.getMonth()+1,0);return f.toISOString().slice(0,10)}
+// ── DATAS (sempre no fuso de Brasília, nunca UTC) ──
+// toISOString() devolve UTC: das 21h em diante gravaria a data de amanhã.
+const TZ_BR='America/Sao_Paulo';
+const _fmtISO=new Intl.DateTimeFormat('en-CA',{timeZone:TZ_BR,year:'numeric',month:'2-digit',day:'2-digit'});
+function dISO(d){return _fmtISO.format(d||new Date())}          // Date -> 'YYYY-MM-DD' em Brasília
+function hoje(){return dISO(new Date())}
+function mesIni(){const[a,m]=hoje().split('-');return`${a}-${m}-01`}
+function fimMes(){const[a,m]=hoje().split('-').map(Number);return dISO(new Date(Date.UTC(a,m,0,12)))}
+function maisDias(n){return dISO(new Date(Date.now()+n*864e5))} // hoje + n dias, em Brasília
 
 // ═══════════ AUTH ═══════════
 async function boot(){
@@ -1389,7 +1437,7 @@ async function loadDashboard(){
   $('d-top-produtos').innerHTML=top.length?`<div class="chart-bar-wrap">${top.map(([n,v])=>`<div class="chart-bar-row"><div class="chart-bar-label">${n.slice(0,12)}</div><div class="chart-bar-track"><div class="chart-bar-fill" style="width:${(v/mx*100).toFixed(0)}%"></div></div><div class="chart-bar-val">${fmt(v)}</div></div>`).join('')}</div>`:'<div class="empty"><p>Sem dados</p></div>';
   // Vencendo
   const in7=new Date();in7.setDate(in7.getDate()+7);
-  const{data:vc}=await sb.from('lancamentos').select('descricao,tipo,valor,data_vencimento').eq('status','pendente').lte('data_vencimento',in7.toISOString().slice(0,10)).order('data_vencimento');
+  const{data:vc}=await sb.from('lancamentos').select('descricao,tipo,valor,data_vencimento').eq('status','pendente').lte('data_vencimento',dISO(in7)).order('data_vencimento');
   $('d-vencendo').innerHTML=vc?.length?`<table style="font-size:13px"><tbody>${vc.map(l=>`<tr><td>${l.descricao}</td><td><span class="badge ${l.tipo==='pagar'?'badge-danger':'badge-success'}">${l.tipo==='pagar'?'Pagar':'Receber'}</span></td><td><strong>${fmt(l.valor)}</strong><br/><small>${fmtD(l.data_vencimento)}</small></td></tr>`).join('')}</tbody></table>`:'<div class="empty"><span class="icon">✅</span><p>Tudo em dia!</p></div>';
 }
 
@@ -1511,7 +1559,7 @@ function buscarProd(input,listaId){
   const q=input.value.trim();const lista=$(listaId);clearTimeout(_bT);
   if(q.length<2){lista.style.display='none';return}
   _bT=setTimeout(async()=>{
-    const{data}=await sb.from('produtos').select('id,nome,codigo,preco_venda,preco_custo,estoque_atual').or(`nome.ilike.%${q}%,codigo.ilike.%${q}%`).eq('ativo',true).limit(8);
+    const{data}=await sb.from('produtos').select('id,nome,codigo,preco_venda,preco_custo,estoque_atual').or(`nome.ilike.%${q}%,codigo.ilike.%${q}%`).eq('ativo',true).limit(40);
     lista.style.display='block';
     if(!data?.length){
       lista.innerHTML=`<div style="padding:10px;font-size:13px;color:var(--muted)">Nenhum produto encontrado para "<strong>${q}</strong>"
@@ -1519,7 +1567,23 @@ function buscarProd(input,listaId){
       </div>`;
       return;
     }
-    lista.innerHTML=data.map(p=>`<div class="autocomplete-item" onclick="pickProd('${listaId}','${p.id}',\`${p.nome.replace(/`/g,"'")}\`,'${p.codigo||''}',${p.preco_venda},${p.preco_custo},${p.estoque_atual})"><div><strong>${p.nome}</strong>${p.codigo?` <small style="color:var(--muted)">#${p.codigo}</small>`:''}<div style="font-size:11px;color:var(--muted)">Estoque: ${p.estoque_atual}</div></div><div style="text-align:right"><div style="font-weight:600;color:var(--rose)">${fmt(p.preco_venda)}</div><div style="font-size:11px;color:var(--muted)">custo: ${fmt(p.preco_custo)}</div></div></div>`).join('');
+    // Vendas e orcamentos: com estoque primeiro, cada grupo em ordem alfabetica.
+    // Compras fica so alfabetico — voce compra justamente o que acabou.
+    const priorizarEstoque=(listaId!=='cm-lista');
+    const ordenado=[...data].sort((a,b)=>{
+      if(priorizarEstoque){
+        const ea=parseFloat(a.estoque_atual||0)>0?0:1;
+        const eb=parseFloat(b.estoque_atual||0)>0?0:1;
+        if(ea!==eb)return ea-eb;
+      }
+      return (a.nome||'').localeCompare(b.nome||'','pt-BR',{sensitivity:'base'});
+    }).slice(0,10);
+    lista.innerHTML=ordenado.map(p=>{
+      const _e=parseFloat(p.estoque_atual||0);
+      const _sem=_e<=0;
+      const _lbl=_sem?`<div style="font-size:11px;color:var(--danger)">\u26a0 Sem estoque</div>`:`<div style="font-size:11px;color:var(--muted)">Estoque: ${p.estoque_atual}</div>`;
+      return `<div class="autocomplete-item" style="${_sem?'opacity:.55':''}" onclick="pickProd('${listaId}','${p.id}',\`${p.nome.replace(/`/g,"'")}\`,'${p.codigo||''}',${p.preco_venda},${p.preco_custo},${p.estoque_atual})"><div><strong>${p.nome}</strong>${p.codigo?` <small style="color:var(--muted)">#${p.codigo}</small>`:''}${_lbl}</div><div style="text-align:right"><div style="font-weight:600;color:var(--rose)">${fmt(p.preco_venda)}</div><div style="font-size:11px;color:var(--muted)">custo: ${fmt(p.preco_custo)}</div></div></div>`;
+    }).join('');
   },300);
 }
 function pickProd(listaId,id,nome,cod,pv,pc,est){
@@ -1618,7 +1682,7 @@ async function openCompraModal(){
   cItens=[];selProd=null;$('cm-data').value=hoje();$('cm-nf').value='';$('cm-frete').value=0;$('cm-obs').value='';
   $('cm-busca').value='';$('cm-qtd').value=1;$('cm-custo').value='';$('cm-itens').innerHTML='';$('cm-total').textContent='R$ 0,00';
   $('cm-pagto').value='pix';$('cm-parc').value='1';
-  $('cm-venc').value=new Date(Date.now()+30*864e5).toISOString().slice(0,10);
+  $('cm-venc').value=maisDias(30);
   const{data:forn}=await sb.from('fornecedores').select('id,nome').eq('ativo',true).order('nome');
   $('cm-forn').innerHTML='<option value="">Selecione...</option>'+(forn||[]).map(f=>`<option value="${f.id}">${f.nome}</option>`).join('');
   $('compra-modal').style.display='flex';
@@ -1671,7 +1735,7 @@ async function saveCompra(){
   for(let p=1;p<=parcelas;p++){
     const vd=new Date(venc1);vd.setMonth(vd.getMonth()+(p-1));
     const vlr=p===parcelas?+(total-vp*(parcelas-1)).toFixed(2):vp;
-    const{error:le}=await sb.from('lancamentos').insert(wt({tipo:'pagar',descricao:`Compra #${num}${nf?' NF '+nf:''}${parcelas>1?' ('+p+'/'+parcelas+')':''}`,categoria:'compra',valor:vlr,data_vencimento:vd.toISOString().slice(0,10),status:'pendente',referencia_id:compra.id,referencia_tipo:'compra',observacoes:nf?'NF: '+nf:null}));
+    const{error:le}=await sb.from('lancamentos').insert(wt({tipo:'pagar',descricao:`Compra #${num}${nf?' NF '+nf:''}${parcelas>1?' ('+p+'/'+parcelas+')':''}`,categoria:'compra',valor:vlr,data_vencimento:dISO(vd),status:'pendente',referencia_id:compra.id,referencia_tipo:'compra',observacoes:nf?'NF: '+nf:null}));
     if(le)console.error(le);else lok++;
   }
   toast(`Compra #${num}: ${cItens.length} item(ns), estoque ↑, ${lok} parcela(s)`,'success');
@@ -2009,6 +2073,138 @@ async function importarNFParaCompra(){
   },400);
 }
 
+// ═══════════ ALTERAR FORMA / CONDIÇÃO DE PAGAMENTO ═══════════
+let _pagVenda=null;
+
+async function openAlterarPagamento(vendaId){
+  const{data:v}=await sb.from('vendas').select('*,clientes(nome)').eq('id',vendaId).single();
+  if(!v){toast('Venda não encontrada','error');return}
+  const{data:lancs}=await sb.from('lancamentos').select('*').eq('referencia_id',vendaId).eq('referencia_tipo','venda').order('data_vencimento');
+
+  const pagos=(lancs||[]).filter(l=>l.status==='pago');
+  const pendentes=(lancs||[]).filter(l=>l.status==='pendente');
+  const vlrPago=pagos.reduce((s,l)=>s+parseFloat(l.valor||0),0);
+  const saldo=pendentes.reduce((s,l)=>s+parseFloat(l.valor||0),0);
+
+  if(saldo<=0){
+    toast('Esta venda já está totalmente paga — não há o que alterar.','warn');
+    return;
+  }
+
+  _pagVenda={venda:v,pagos,pendentes,vlrPago,saldo};
+
+  $('pag-resumo').innerHTML=`
+    <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+      <span style="color:var(--muted)">Venda</span><strong>#${v.numero||v.id.slice(0,6)} — ${v.clientes?.nome||'Consumidor'}</strong>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+      <span style="color:var(--muted)">Forma atual</span><strong>${pagtoLbl(v.forma_pagamento)}${pendentes.length>1?` · ${pendentes.length}x em aberto`:''}</strong>
+    </div>
+    ${vlrPago>0?`<div style="display:flex;justify-content:space-between;margin-bottom:6px;color:var(--success)">
+      <span>Já pago (${pagos.length}x)</span><strong>${fmt(vlrPago)}</strong></div>`:''}
+    <div style="display:flex;justify-content:space-between;padding-top:6px;border-top:1px solid var(--border)">
+      <span style="color:var(--muted)">Saldo a renegociar</span><strong style="color:var(--rose);font-size:15px">${fmt(saldo)}</strong>
+    </div>`;
+
+  $('pag-forma').value=v.forma_pagamento||'pix';
+  $('pag-parc').value=String(Math.max(1,pendentes.length));
+  $('pag-venc').value=pendentes[0]?.data_vencimento||hoje();
+  togglePagParc();
+  $('pag-btn-salvar').disabled=false;
+  $('pag-btn-salvar').textContent='💾 Aplicar';
+  $('pag-modal').style.display='flex';
+}
+
+function togglePagParc(){
+  const f=$('pag-forma').value;
+  const aPrazo=(f==='fiado'||f==='cartao_credito');
+  $('pag-parc-wrap').style.display=aPrazo?'':'none';
+  if(!aPrazo)$('pag-parc').value='1';
+  renderPagPreview();
+}
+
+function renderPagPreview(){
+  if(!_pagVenda)return;
+  const f=$('pag-forma').value;
+  const n=parseInt($('pag-parc').value)||1;
+  const venc=$('pag-venc').value||hoje();
+  const saldo=_pagVenda.saldo;
+  const aPrazo=(f==='fiado'||f==='cartao_credito');
+
+  if(!aPrazo){
+    $('pag-preview').innerHTML=`Baixa imediata: <strong>${fmt(saldo)}</strong> como pago em ${fmtD(venc)}.`;
+    return;
+  }
+  const vp=+(saldo/n).toFixed(2);
+  const linhas=[];
+  for(let p=1;p<=Math.min(n,4);p++){
+    const d=new Date(venc+'T12:00:00');d.setMonth(d.getMonth()+(p-1));
+    const vlr=p===n?+(saldo-vp*(n-1)).toFixed(2):vp;
+    linhas.push(`${p}ª — ${fmt(vlr)} em ${fmtD(dISO(d))}`);
+  }
+  if(n>4)linhas.push(`... e mais ${n-4} parcela(s)`);
+  $('pag-preview').innerHTML=`<strong>${n}x de ${fmt(vp)}</strong><br/>${linhas.join('<br/>')}`;
+}
+
+async function salvarAlteracaoPagamento(){
+  if(!_pagVenda)return;
+  const btn=$('pag-btn-salvar');
+  if(btn.disabled)return;
+  btn.disabled=true;btn.textContent='⏳ Aplicando...';
+
+  const v=_pagVenda.venda;
+  const f=$('pag-forma').value;
+  const n=parseInt($('pag-parc').value)||1;
+  const venc=$('pag-venc').value||hoje();
+  const saldo=_pagVenda.saldo;
+  const aPrazo=(f==='fiado'||f==='cartao_credito');
+
+  try{
+    // Remove apenas as parcelas ainda em aberto — as pagas ficam intactas
+    for(const l of _pagVenda.pendentes){
+      const{error}=await sb.from('lancamentos').delete().eq('id',l.id);
+      if(error)throw new Error('Não foi possível remover a parcela antiga: '+error.message);
+    }
+
+    const num=v.numero||v.id.slice(0,6);
+    if(!aPrazo){
+      // À vista: um lançamento já quitado
+      const{error}=await sb.from('lancamentos').insert(wt({
+        tipo:'receber',descricao:`Venda #${num} (${pagtoLbl(f)})`,categoria:'venda',
+        valor:saldo,data_vencimento:venc,data_pagamento:venc,status:'pago',
+        referencia_id:v.id,referencia_tipo:'venda'
+      }));
+      if(error)throw new Error(error.message);
+    } else {
+      const vp=+(saldo/n).toFixed(2);
+      for(let p=1;p<=n;p++){
+        const d=new Date(venc+'T12:00:00');d.setMonth(d.getMonth()+(p-1));
+        const vlr=p===n?+(saldo-vp*(n-1)).toFixed(2):vp;
+        const{error}=await sb.from('lancamentos').insert(wt({
+          tipo:'receber',descricao:`Venda #${num}${n>1?` (${p}/${n})`:''}${f==='fiado'?' (Fiado)':''}`,
+          categoria:'venda',valor:vlr,data_vencimento:dISO(d),status:'pendente',
+          referencia_id:v.id,referencia_tipo:'venda'
+        }));
+        if(error)throw new Error(error.message);
+      }
+    }
+
+    // Atualiza a venda
+    await sb.from('vendas').update({
+      forma_pagamento:f,
+      status:aPrazo?'pendente':'pago'
+    }).eq('id',v.id);
+
+    toast(aPrazo?`Pagamento alterado: ${n}x no ${pagtoLbl(f)} ✨`:`Venda quitada em ${pagtoLbl(f)} ✨`,'success');
+    $('pag-modal').style.display='none';
+    loadVendas();
+  }catch(err){
+    console.error('Erro ao alterar pagamento:',err);
+    toast('Erro: '+err.message,'error');
+  }
+  btn.disabled=false;btn.textContent='💾 Aplicar';
+}
+
 // ═══════════ COBRANÇA (InfinitePay + Pix) ═══════════
 let _cobVenda=null;
 let _cobTenant=null; // config de cobrança sempre lida fresca do banco
@@ -2140,13 +2336,17 @@ async function gerarCobranca(){
         : [{quantity:1,price:Math.round(_cobVenda.aCobrar*100),description:`Pedido #${v.numero||v.id.slice(0,6)}`}];
 
       const tel=(v.clientes?.whatsapp||v.clientes?.telefone||'').replace(/\D/g,'');
+      // order_nsu aleatório: só quem tem o link consegue adivinhar
+      const orderNsu=(crypto.randomUUID?crypto.randomUUID():'bs-'+Date.now()+'-'+Math.random().toString(36).slice(2));
       const resp=await fetch(`${SB_URL}/functions/v1/infinitepay-link`,{
         method:'POST',
         headers:{'Content-Type':'application/json','Authorization':'Bearer '+SB_KEY,'apikey':SB_KEY},
         body:JSON.stringify({
           handle:t.infinitepay_handle,
           items,
-          order_nsu:`bs-${v.id.slice(0,8)}-${Date.now().toString().slice(-6)}`,
+          order_nsu:orderNsu,
+          webhook_url:`${SB_URL}/functions/v1/infinitepay-webhook`,
+          redirect_url:BASE_URL(),
           customer:{
             name:v.clientes?.nome||undefined,
             email:v.clientes?.email||undefined,
@@ -2157,6 +2357,14 @@ async function gerarCobranca(){
       const r=await resp.json();
       if(!resp.ok||!r.ok)throw new Error(r.detalhe||r.error||'Falha ao gerar link');
       link=r.url;
+      // Registra a cobrança para o webhook conseguir achar a venda depois
+      const{error:cobErr}=await sb.from('cobrancas').insert(wt({
+        venda_id:v.id,order_nsu:orderNsu,valor:_cobVenda.aCobrar,link,status:'pendente'
+      }));
+      if(cobErr){
+        console.error('Erro ao registrar cobrança:',cobErr);
+        toast('Link gerado, mas a baixa automática não vai funcionar: '+cobErr.message,'warn');
+      }
     }catch(err){
       console.error('Erro cobrança:',err);
       toast('Erro ao gerar link: '+err.message,'error');
@@ -2307,6 +2515,7 @@ async function loadVendas(){
       <td style="display:flex;gap:4px;flex-wrap:wrap">
         <button class="btn btn-sm btn-secondary" onclick="verItens('vendas_itens','venda_id','${v.id}','Itens da Venda #'+(${v.numero||0}||''))">🧾 Itens</button>
         ${sit==='pendente'?`<button class="btn btn-sm btn-primary" onclick="openCobranca('${v.id}')" title="Enviar cobrança para a cliente">💰 Cobrar</button>`:''}
+        ${sit==='pendente'?`<button class="btn btn-sm btn-secondary" onclick="openAlterarPagamento('${v.id}')" title="Alterar forma ou parcelamento">🔄 Pagto</button>`:''}
         ${sit!=='devolvida'?`<button class="btn btn-sm btn-danger" onclick="openDevolucao('${v.id}','${v.numero||v.id.slice(0,6)}','${v.clientes?.nome||'Consumidor'}',${v.valor_total})" title="Registrar devolução">↩ Dev.</button>`:''}
       </td>
     </tr>`}).join(''):emptyR(7,'Nenhuma venda');
@@ -2364,9 +2573,9 @@ async function saveVenda(){
   if(isPrazo&&parcelas>1){
     const vp=+(total/parcelas).toFixed(2);
     for(let p=1;p<=parcelas;p++){const vd=new Date(dataV);vd.setDate(vd.getDate()+30*p);const vlr=p===parcelas?+(total-vp*(parcelas-1)).toFixed(2):vp;
-      const{error:le}=await sb.from('lancamentos').insert(wt({tipo:'receber',descricao:`Venda #${num} (${p}/${parcelas})`,categoria:'venda',valor:vlr,data_vencimento:vd.toISOString().slice(0,10),status:'pendente',referencia_id:venda.id,referencia_tipo:'venda'}));if(le)console.error(le)}
+      const{error:le}=await sb.from('lancamentos').insert(wt({tipo:'receber',descricao:`Venda #${num} (${p}/${parcelas})`,categoria:'venda',valor:vlr,data_vencimento:dISO(vd),status:'pendente',referencia_id:venda.id,referencia_tipo:'venda'}));if(le)console.error(le)}
   }else{
-    const{error:le}=await sb.from('lancamentos').insert(wt({tipo:'receber',descricao:`Venda #${num}${pagto==='fiado'?' (Fiado)':''}`,categoria:'venda',valor:total,data_vencimento:isPrazo?new Date(Date.now()+30*864e5).toISOString().slice(0,10):dataV,data_pagamento:isPrazo?null:dataV,status:isPrazo?'pendente':'pago',referencia_id:venda.id,referencia_tipo:'venda'}));if(le)console.error(le)}
+    const{error:le}=await sb.from('lancamentos').insert(wt({tipo:'receber',descricao:`Venda #${num}${pagto==='fiado'?' (Fiado)':''}`,categoria:'venda',valor:total,data_vencimento:isPrazo?maisDias(30):dataV,data_pagamento:isPrazo?null:dataV,status:isPrazo?'pendente':'pago',referencia_id:venda.id,referencia_tipo:'venda'}));if(le)console.error(le)}
   if(cli){const{data:cd}=await sb.from('clientes').select('total_compras').eq('id',cli).single();await sb.from('clientes').update({total_compras:(parseFloat(cd?.total_compras||0)+total)}).eq('id',cli)}
   // Incrementar uso do cupom se aplicado
   if(_cupomAtivo){
@@ -3026,7 +3235,7 @@ async function openOrcamentoModal(id){
   $('orm-title').textContent=id?'Editar Orçamento':'Novo Orçamento';
   $('orm-data').value=hoje();
   const valid=new Date();valid.setDate(valid.getDate()+7);
-  $('orm-valid').value=valid.toISOString().slice(0,10);
+  $('orm-valid').value=dISO(valid);
   $('orm-busca').value='';$('orm-qtd').value=1;$('orm-preco').value='';
   $('orm-itens').innerHTML='';$('orm-total').textContent='R$ 0,00';$('orm-desc').value=0;$('orm-obs').value='';
   const{data:cls}=await sb.from('clientes').select('id,nome').order('nome');
@@ -3663,7 +3872,9 @@ function adiarCartao(){
 
 // ═══════════ SISTEMA DE PLANOS ═══════════
 // Mapa de funcionalidades por plano mínimo necessário
-const PLANO_NIVEL={trial:0,basic:1,pro:2,premium:3};
+// Trial tem acesso completo (nível igual ao Premium) — é o período de degustação.
+// 'expired' é tratado à parte em temAcesso().
+const PLANO_NIVEL={expired:0,basic:1,pro:2,premium:3,trial:3};
 const PLANO_NOME={trial:'Trial',basic:'Basic',pro:'Pro',premium:'Premium'};
 const PLANO_PRECO={basic:'R$29/mês',pro:'R$59/mês',premium:'R$99/mês'};
 
