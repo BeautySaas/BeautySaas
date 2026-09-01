@@ -424,7 +424,7 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:14px 0}
         <a href="termos.html" target="_blank" style="color:rgba(255,255,255,.4);text-decoration:none">Privacidade</a> ·
         <a href="termos.html" target="_blank" style="color:rgba(255,255,255,.4);text-decoration:none">LGPD</a><br/>
         © 2026 BeautySaaS<br/>
-        <span style="color:rgba(255,255,255,.2);font-size:9px">v31.08.2026 22:35:00</span>
+        <span style="color:rgba(255,255,255,.2);font-size:9px">v31.08.2026 23:05:00</span>
       </div>
     </div>
   </div>
@@ -1870,7 +1870,6 @@ async function lerNFComIA(file){
     $('nf-total-val').textContent=fmt(_nfDados.vNF);
     $('nf-preview').style.display='block';
     $('nf-btn-importar').style.display='';
-    verificarTodosNFCadastrados();
     toast(`✅ NF lida pela IA! ${_nfDados.itens.length} itens encontrados.`,'success');
 
   }catch(err){
@@ -1938,7 +1937,6 @@ function parseNFe(xml){
     $('nf-preview').style.display='block';
     $('nf-upload-area').style.display='none';
     $('nf-btn-importar').style.display='';
-    verificarTodosNFCadastrados();
     toast(`NF #${nNF} lida com sucesso! ${itens.length} itens.`,'success');
   }catch(err){
     console.error('Erro parseNFe:',err);
@@ -1948,14 +1946,29 @@ function parseNFe(xml){
 
 let _nfProdMatch={}; // mapa cProd → produto_id cadastrado
 
+// Chave usada para casar item da NF com produto cadastrado.
+// Usa o codigo quando existe; se a NF nao trouxer codigo, cai para o nome.
+function chaveNF(it){
+  return (it.cProd&&String(it.cProd).trim())
+    ? 'c:'+String(it.cProd).trim()
+    : 'n:'+String(it.xProd||'').trim().toLowerCase();
+}
+
 async function renderNFItens(itens){
   $('nf-itens-lista').innerHTML='<div style="text-align:center;padding:12px;color:var(--muted)">🔍 Verificando produtos cadastrados...</div>';
 
-  // Buscar produtos por código para ver quais já estão cadastrados
+  // Casa por codigo; itens sem codigo na NF sao casados pelo nome
   const codigos=itens.map(i=>i.cProd).filter(Boolean);
-  const{data:prods}=await sb.from('produtos').select('id,nome,codigo,preco_custo').in('codigo',codigos);
+  const nomes=itens.filter(i=>!i.cProd).map(i=>i.xProd).filter(Boolean);
   _nfProdMatch={};
-  (prods||[]).forEach(p=>{if(p.codigo)_nfProdMatch[p.codigo]=p});
+  if(codigos.length){
+    const{data:pc}=await sb.from('produtos').select('id,nome,codigo,preco_custo').in('codigo',codigos);
+    (pc||[]).forEach(p=>{if(p.codigo)_nfProdMatch['c:'+String(p.codigo).trim()]=p});
+  }
+  if(nomes.length){
+    const{data:pn}=await sb.from('produtos').select('id,nome,codigo,preco_custo').in('nome',nomes);
+    (pn||[]).forEach(p=>{if(p.nome)_nfProdMatch['n:'+p.nome.trim().toLowerCase()]=p});
+  }
 
   $('nf-itens-lista').innerHTML=`<table style="width:100%;font-size:13px;border-collapse:collapse">
     <thead><tr style="background:var(--cream)">
@@ -1966,7 +1979,7 @@ async function renderNFItens(itens){
       <th style="padding:8px;text-align:center">Status</th>
     </tr></thead>
     <tbody>${itens.map((it,i)=>{
-      const match=_nfProdMatch[it.cProd];
+      const match=_nfProdMatch[chaveNF(it)];
       const status=match
         ?`<span class="badge badge-success">✓ Cadastrado</span>`
         :`<span class="badge badge-warn">Não cadastrado</span>
@@ -1980,6 +1993,9 @@ async function renderNFItens(itens){
       </tr>`;
     }).join('')}</tbody>
   </table>`;
+
+  // Validar o botao aqui garante que lista e botao nunca divergem
+  verificarTodosNFCadastrados();
 }
 
 let _nfModalAberto=false; // flag para saber se estamos no fluxo NF
@@ -2000,25 +2016,29 @@ async function criarProdutoNF(idx){
   modalCb=async()=>{
     const ok=await origCb();
     if(ok!==false){
-      const{data:p}=await sb.from('produtos').select('id,nome,codigo,preco_custo').eq('codigo',it.cProd).maybeSingle();
-      if(p){_nfProdMatch[it.cProd]=p;}
-      else{
-        const{data:p2}=await sb.from('produtos').select('id,nome,codigo,preco_custo').ilike('nome',it.xProd).maybeSingle();
-        if(p2){_nfProdMatch[it.cProd]=p2;}
+      let novo=null;
+      if(it.cProd){
+        const{data:p}=await sb.from('produtos').select('id,nome,codigo,preco_custo').eq('codigo',it.cProd).maybeSingle();
+        novo=p||null;
       }
+      if(!novo){
+        const{data:p2}=await sb.from('produtos').select('id,nome,codigo,preco_custo').ilike('nome',it.xProd).maybeSingle();
+        novo=p2||null;
+      }
+      // Grava na mesma chave usada na leitura, senao o item recem-criado nao casa
+      if(novo)_nfProdMatch[chaveNF(it)]=novo;
     }
     // Sempre reabrir modal da NF
     _nfModalAberto=false;
     $('nf-modal').style.display='flex';
     await renderNFItens(_nfDados.itens);
-    verificarTodosNFCadastrados();
     return ok;
   };
 }
 
 function verificarTodosNFCadastrados(){
   if(!_nfDados)return;
-  const semCadastro=_nfDados.itens.filter(it=>!_nfProdMatch[it.cProd]);
+  const semCadastro=_nfDados.itens.filter(it=>!_nfProdMatch[chaveNF(it)]);
   const btn=$('nf-btn-importar');
   if(semCadastro.length>0){
     btn.disabled=true;
@@ -2055,7 +2075,7 @@ async function importarNFParaCompra(){
     cItens=[];
     let semCadastro=0;
     for(const it of _nfDados.itens){
-      const match=_nfProdMatch[it.cProd];
+      const match=_nfProdMatch[chaveNF(it)];
       if(match){
         cItens.push({produto_id:match.id,nome:match.nome,quantidade:it.qCom,preco_unitario:it.vUnCom});
       } else {
