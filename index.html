@@ -424,7 +424,7 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:14px 0}
         <a href="termos.html" target="_blank" style="color:rgba(255,255,255,.4);text-decoration:none">Privacidade</a> ·
         <a href="termos.html" target="_blank" style="color:rgba(255,255,255,.4);text-decoration:none">LGPD</a><br/>
         © 2026 BeautySaaS<br/>
-        <span style="color:rgba(255,255,255,.2);font-size:9px">v31.08.2026 11:40:00</span>
+        <span style="color:rgba(255,255,255,.2);font-size:9px">v31.08.2026 12:05:00</span>
       </div>
     </div>
   </div>
@@ -2014,12 +2014,19 @@ let _cobVenda=null;
 let _cobTenant=null; // config de cobrança sempre lida fresca do banco
 
 async function getConfigCobranca(){
-  const{data,error}=await sb.from('tenants').select('nome,infinitepay_handle,pix_chave,pix_nome').eq('id',tid).single();
-  if(error){console.error('getConfigCobranca:',error);return curProfile?.tenants||{}}
-  // Mantém o cache em sincronia
-  if(curProfile?.tenants)Object.assign(curProfile.tenants,data);
-  _cobTenant=data;
-  return data;
+  // Lê pelo mesmo caminho (join via profiles) que o app já usa com sucesso
+  const{data:p,error}=await sb.from('profiles').select('tenants(nome,infinitepay_handle,pix_chave,pix_nome)').eq('id',curUser.id).single();
+  let cfg=p?.tenants||null;
+  if(Array.isArray(cfg))cfg=cfg[0]||null;
+  if(error||!cfg){
+    console.warn('getConfigCobranca via join falhou, tentando direto:',error);
+    const{data:d}=await sb.from('tenants').select('nome,infinitepay_handle,pix_chave,pix_nome').eq('id',tid).maybeSingle();
+    cfg=d||{};
+  }
+  console.log('Config cobrança lida do banco:',cfg);
+  if(curProfile?.tenants)Object.assign(curProfile.tenants,cfg);
+  _cobTenant=cfg;
+  return cfg;
 }
 
 async function loadConfigCobranca(){
@@ -2033,15 +2040,31 @@ async function salvarConfigCobranca(){
   const handle=$('cfg-ip-handle').value.trim().replace(/^\$/,'');
   const chave=$('cfg-pix-chave').value.trim();
   const nome=$('cfg-pix-nome').value.trim();
-  const{error}=await sb.from('tenants').update({
+  const msg=$('cfg-cobranca-msg');
+
+  // .select() devolve as linhas afetadas — se vier vazio, o RLS bloqueou
+  const{data,error}=await sb.from('tenants').update({
     infinitepay_handle:handle||null,
     pix_chave:chave||null,
     pix_nome:nome||null
-  }).eq('id',tid);
-  if(error){toast('Erro ao salvar: '+error.message,'error');return}
-  await getConfigCobranca(); // recarrega do banco para confirmar
-  $('cfg-cobranca-msg').innerHTML='<span style="color:var(--success)">✓ Configurações salvas!</span>';
-  setTimeout(()=>{$('cfg-cobranca-msg').innerHTML=''},3000);
+  }).eq('id',tid).select();
+
+  if(error){
+    toast('Erro ao salvar: '+error.message,'error');
+    msg.innerHTML=`<span style="color:var(--danger)">✕ ${error.message}</span>`;
+    return;
+  }
+  if(!data||!data.length){
+    const aviso='Nada foi gravado — falta a policy de UPDATE na tabela tenants.';
+    toast(aviso,'error');
+    msg.innerHTML=`<span style="color:var(--danger)">✕ ${aviso}</span>`;
+    console.error('UPDATE em tenants afetou 0 linhas. Rode a policy tenants_self no SQL Editor.');
+    return;
+  }
+
+  await getConfigCobranca();
+  msg.innerHTML='<span style="color:var(--success)">✓ Configurações salvas!</span>';
+  setTimeout(()=>{msg.innerHTML=''},3000);
   toast('Configurações de cobrança salvas!','success');
 }
 
